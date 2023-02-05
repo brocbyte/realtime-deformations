@@ -13,9 +13,9 @@ void Camera::updateMatrix() {
 
 void Camera::updateDirections() {
     direction = glm::vec3(
-        cos(vAngle)* sin(hAngle),
+        cos(vAngle) * sin(hAngle),
         sin(vAngle),
-        cos(vAngle)* cos(hAngle)
+        cos(vAngle) * cos(hAngle)
     );
     right = glm::vec3(sin(hAngle - 3.14f / 2.0f), 0, cos(hAngle - 3.14f / 2.0f));
     up = glm::cross(right, direction);
