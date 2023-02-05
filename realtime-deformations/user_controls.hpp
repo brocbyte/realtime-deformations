@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include "camera.hpp"
 #include <iostream>
+#include "constants.hpp"
 class UserControls {
 public:
     UserControls(GLFWwindow* window) : _window(window) {
@@ -16,7 +17,7 @@ private:
     const float speed = 3.0f;
     const float mouseSpeed = 0.001f;
 
-    double lastX = 0.0;
-    double lastY = 0.0;
+    double lastX = GLFW_WINDOW_WIDTH / 2.0;
+    double lastY = GLFW_WINDOW_HEIGHT / 2.0;
     double lastTime = 0.0;
 };
