@@ -46,6 +46,9 @@ add_executable (realtime-deformations
 	"camera.hpp"
 	"camera.cpp"
 	"fps_counter.hpp"
+	"material_point_method.hpp"
+	"material_point_method.cpp"
+	"utils.h"
 	common/shader.cpp
 	common/shader.hpp
 	common/objloader.cpp
@@ -59,7 +62,15 @@ add_executable (realtime-deformations
 )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET realtime-deformations PROPERTY CXX_STANDARD 20)
+  set_property(TARGET realtime-deformations PROPERTY CXX_STANDARD 23)
+endif()
+
+if (MSVC)
+    # warning level 4
+    add_compile_options(/W4 /P)
+else()
+    # additional warnings
+    add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
 target_link_libraries(realtime-deformations

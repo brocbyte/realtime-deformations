@@ -11,6 +11,8 @@ GLFWwindow* window;
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/norm.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 #include "common/shader.hpp"
 #include "common/objloader.hpp"
@@ -22,52 +24,13 @@ GLFWwindow* window;
 #include "user_controls.hpp"
 #include "camera.hpp"
 #include "fps_counter.hpp"
-#include <glm/gtx/norm.hpp>
+#include "material_point_method.hpp"
 
 int initLibs();
 
-struct Particle {
-    glm::vec3 pos, speed;
-    float cameradistance;
-    unsigned char r, g, b, a; // Color
-    float size, angle, weight;
-    float life; // Remaining life of the particle. if < 0 : dead and unused.
-
-    bool operator<(const Particle& that) const {
-        // Sort in reverse order : far particles drawn first.
-        return this->cameradistance > that.cameradistance;
-    }
-};
-
-const int MaxParticles = 100000;
-Particle ParticlesContainer[MaxParticles];
-int LastUsedParticle = 0;
-
-// Finds a Particle in ParticlesContainer which isn't used yet.
-// (i.e. life < 0);
-int FindUnusedParticle() {
-
-    for (int i = LastUsedParticle; i < MaxParticles; i++) {
-        if (ParticlesContainer[i].life < 0) {
-            LastUsedParticle = i;
-            return i;
-        }
-    }
-
-    for (int i = 0; i < LastUsedParticle; i++) {
-        if (ParticlesContainer[i].life < 0) {
-            LastUsedParticle = i;
-            return i;
-        }
-    }
-
-    return 0; // All particles are taken, override the first one
-}
-void SortParticles() {
-    std::sort(&ParticlesContainer[0], &ParticlesContainer[MaxParticles]);
-}
-
 int main(void) {
+    MaterialPointMethod::LagrangeEulerView MPM{ 1, 1, 1, 1000 };
+    const auto MaxParticles = MPM.getParticles().size();
     if (initLibs() == -1) {
         return -1;
     }
@@ -80,7 +43,7 @@ int main(void) {
     glfwPollEvents();
     glfwSetCursorPos(window, GLFW_WINDOW_WIDTH / 2, GLFW_WINDOW_HEIGHT / 2);
 
-    // Dark blue background
+    // Light blue background
     glClearColor(164.0f / 255, 219.0f / 255, 232.0f / 255, 0.0f);
 
     // Enable depth test
@@ -92,33 +55,23 @@ int main(void) {
     glGenVertexArrays(1, &VertexArrayID);
     glBindVertexArray(VertexArrayID);
 
-    for (int i = 0; i < MaxParticles; i++) {
-        ParticlesContainer[i].life = -1.0f;
-        ParticlesContainer[i].cameradistance = -1.0f;
-    }
     FPSCounter fpsCounter;
     Camera camera;
+    camera.position.y = 5;
     UserControls userControls{ window };
 
-
-
-
     GLuint programID = LoadShaders((SHADERS_PATH + "Particle.vertexshader").c_str(), (SHADERS_PATH + "Particle.fragmentshader").c_str());
+
     // Vertex shader
     GLuint CameraRight_worldspace_ID = glGetUniformLocation(programID, "CameraRight_worldspace");
     GLuint CameraUp_worldspace_ID = glGetUniformLocation(programID, "CameraUp_worldspace");
     GLuint ViewProjMatrixID = glGetUniformLocation(programID, "VP");
 
-    // fragment shader
+    // Fragment shader
     GLuint TextureID = glGetUniformLocation(programID, "myTextureSampler");
 
     static GLfloat* g_particule_position_size_data = new GLfloat[MaxParticles * 4];
     static GLubyte* g_particule_color_data = new GLubyte[MaxParticles * 4];
-
-    for (int i = 0; i < MaxParticles; i++) {
-        ParticlesContainer[i].life = -1.0f;
-        ParticlesContainer[i].cameradistance = -1.0f;
-    }
 
     GLuint Texture = loadDDS((RESOURCES_PATH + "particle.DDS").c_str());
 
@@ -149,6 +102,7 @@ int main(void) {
     // Initialize with empty (NULL) buffer : it will be updated later, each frame.
     glBufferData(GL_ARRAY_BUFFER, MaxParticles * 4 * sizeof(GLubyte), NULL, GL_STREAM_DRAW);
 
+    MPM.initParticles();
 
     double lastTime = glfwGetTime();
     do
@@ -162,114 +116,40 @@ int main(void) {
 
         userControls.update(camera);
 
-
         glm::mat4 ProjectionMatrix = camera.projection;
         glm::mat4 ViewMatrix = camera.view;
-
-        // We will need the camera's position in order to sort the particles
-        // w.r.t the camera's distance.
-        // There should be a getCameraPosition() function in common/controls.cpp, 
-        // but this works too.
         glm::vec3 CameraPosition(camera.position);
-
         glm::mat4 ViewProjectionMatrix = ProjectionMatrix * ViewMatrix;
-
-
-        // Generate 10 new particule each millisecond,
-        // but limit this to 16 ms (60 fps), or if you have 1 long frame (1sec),
-        // newparticles will be huge and the next frame even longer.
-        const auto baseDelta = 1.0;
-        int newparticles = (int)(delta * baseDelta);
-        if (newparticles > (int)(0.016f * baseDelta))
-            newparticles = (int)(0.016f * baseDelta);
-        newparticles = 1;
-
-        for (int i = 0; i < newparticles; i++) {
-            int particleIndex = FindUnusedParticle();
-            ParticlesContainer[particleIndex].life = 5.0f; // This particle will live 5 seconds.
-            ParticlesContainer[particleIndex].pos = glm::vec3(0, 0, -20.0f);
-
-            float spread = 0.5f;
-            glm::vec3 maindir = glm::vec3(-7.0f, 12.0f, 0.0f);
-            // Very bad way to generate a random direction; 
-            // See for instance http://stackoverflow.com/questions/5408276/python-uniform-spherical-distribution instead,
-            // combined with some user-controlled parameters (main direction, spread, etc)
-            glm::vec3 randomdir = glm::vec3(
-                (rand() % 2000 - 1000.0f) / 1000.0f,
-                (rand() % 2000 - 1000.0f) / 1000.0f,
-                (rand() % 2000 - 1000.0f) / 1000.0f
-            );
-
-            ParticlesContainer[particleIndex].speed = maindir + randomdir * spread;
-
-
-            // Very bad way to generate a random color
-            ParticlesContainer[particleIndex].r = rand() % 256;
-            ParticlesContainer[particleIndex].g = rand() % 256;
-            ParticlesContainer[particleIndex].b = rand() % 256;
-            ParticlesContainer[particleIndex].a = (rand() % 256) / 3;
-
-            ParticlesContainer[particleIndex].size = (rand() % 1000) / 2000.0f + 0.1f;
-
-        }
 
         // Simulate all particles
         int ParticlesCount = 0;
         for (int i = 0; i < MaxParticles; i++) {
 
-            Particle& p = ParticlesContainer[i]; // shortcut
+            auto& p = MPM.getParticles()[i]; // shortcut
 
-            if (p.life > 0.0f) {
+            // Simulate simple physics : gravity only, no collisions
+            p.pos += p.velocity * (float)delta;
+            p.velocity += glm::vec3{ 0, -10, 0 } *(float)delta;
 
+            p.cameradistance = glm::length2(p.pos - CameraPosition);
 
-                // Decrease life
-                p.life -= delta;
-                if (p.life > 0.0f) {
+            // Fill the GPU buffer
+            g_particule_position_size_data[4 * ParticlesCount + 0] = p.pos.x;
+            g_particule_position_size_data[4 * ParticlesCount + 1] = p.pos.y;
+            g_particule_position_size_data[4 * ParticlesCount + 2] = p.pos.z;
 
-                    // Simulate simple physics : gravity only, no collisions
-                    p.speed += glm::vec3(0.0f, -40.1f, 0.0f) * (float)delta * 0.5f;
-                    const auto signBefore = p.pos.y >= 0;
-                    p.pos += p.speed * (float)delta;
-                    const auto signAfter = p.pos.y >= 0;
-                    if (signBefore != signAfter) {
-                        p.speed.y *= -0.9;
-                        p.pos += p.speed * (2 * (float)delta);
-                    }
+            g_particule_position_size_data[4 * ParticlesCount + 3] = p.size;
 
-                    p.cameradistance = glm::length2(p.pos - CameraPosition);
-                    //ParticlesContainer[i].pos += glm::vec3(0.0f,10.0f, 0.0f) * (float)delta;
+            g_particule_color_data[4 * ParticlesCount + 0] = p.r;
+            g_particule_color_data[4 * ParticlesCount + 1] = p.g;
+            g_particule_color_data[4 * ParticlesCount + 2] = p.b;
+            g_particule_color_data[4 * ParticlesCount + 3] = p.a;
 
-                    // Fill the GPU buffer
-                    g_particule_position_size_data[4 * ParticlesCount + 0] = p.pos.x;
-                    g_particule_position_size_data[4 * ParticlesCount + 1] = p.pos.y;
-                    g_particule_position_size_data[4 * ParticlesCount + 2] = p.pos.z;
+            ParticlesCount++;
 
-                    g_particule_position_size_data[4 * ParticlesCount + 3] = p.size;
-
-                    g_particule_color_data[4 * ParticlesCount + 0] = p.r;
-                    g_particule_color_data[4 * ParticlesCount + 1] = p.g;
-                    g_particule_color_data[4 * ParticlesCount + 2] = p.b;
-                    g_particule_color_data[4 * ParticlesCount + 3] = p.a;
-
-                    if (rand() % 20000 == 0 && abs(p.speed.x) > 0.01 && abs(p.speed.z) > 0.01) {
-                        p.speed = glm::vec3(0.0f, 0.0f, 0.0f);
-                    }
-
-                }
-                else {
-                    // Particles that just died will be put at the end of the buffer in SortParticles();
-                    p.cameradistance = -1.0f;
-                }
-
-                ParticlesCount++;
-
-            }
         }
 
-        SortParticles();
-
-
-        //printf("%d ",ParticlesCount);
+        std::sort(std::begin(MPM.getParticles()), std::end(MPM.getParticles()));
 
 
         // Update the buffers that OpenGL uses for rendering.
@@ -363,6 +243,7 @@ int main(void) {
         // Swap buffers
         glfwSwapBuffers(window);
         glfwPollEvents();
+        fpsCounter.log();
 
     } // Check if the ESC key was pressed or the window was closed
     while (glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS &&
