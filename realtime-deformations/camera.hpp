@@ -2,7 +2,7 @@
 #include <glm/glm.hpp>
 class Camera {
 public:
-    glm::vec3 position{ 0, 0, 5 };
+    glm::vec3 position{5, 0, 0};
     glm::vec3 direction{};
     glm::vec3 up{};
     glm::vec3 right{};
@@ -10,7 +10,7 @@ public:
     glm::mat4 mvp;
     glm::mat4 projection;
     float hAngle = 3.1415f;
-    float vAngle = 0.0f;
+    float vAngle = -3.1415f / 2;
     void updateMatrix();
     void updateDirections();
 private:

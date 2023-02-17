@@ -23,6 +23,8 @@ include_directories(
 	external/assimp-3.0.1270/include/
 	external/bullet-2.81-rev2613/src/
 	.
+	include/
+	external/
 )
 
 set(ALL_LIBS

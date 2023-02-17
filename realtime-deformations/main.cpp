@@ -29,14 +29,20 @@ GLFWwindow* window;
 int initLibs();
 
 int main(void) {
-    MaterialPointMethod::LagrangeEulerView MPM{ 1, 1, 1, 1000 };
-    const auto MaxParticles = MPM.getParticles().size();
     if (initLibs() == -1) {
         return -1;
     }
+
+    MaterialPointMethod::LagrangeEulerView MPM{ 10, 1, 10, 100 };
+    const auto MaxParticles = MPM.getParticles().size();
+    MPM.initParticles();
+    MPM.saveGridVelocities();
+    MPM.rasterizeParticlesToGrid();
+    MPM.computeParticleVolumesAndDensities();
+
     // Ensure we can capture the escape key being pressed below
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
-    // Hide the mouse and enable unlimited mouvement
+    // Hide the mouse and enable unlimited movement
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // Set the mouse at the center of the screen
@@ -57,7 +63,7 @@ int main(void) {
 
     FPSCounter fpsCounter;
     Camera camera;
-    camera.position.y = 5;
+    camera.position = glm::vec3{ 5, 5, 0 };
     UserControls userControls{ window };
 
     GLuint programID = LoadShaders((SHADERS_PATH + "Particle.vertexshader").c_str(), (SHADERS_PATH + "Particle.fragmentshader").c_str());
@@ -102,9 +108,9 @@ int main(void) {
     // Initialize with empty (NULL) buffer : it will be updated later, each frame.
     glBufferData(GL_ARRAY_BUFFER, MaxParticles * 4 * sizeof(GLubyte), NULL, GL_STREAM_DRAW);
 
-    MPM.initParticles();
 
     double lastTime = glfwGetTime();
+    userControls.update(camera);
     do
     {
         // Clear the screen
@@ -112,41 +118,41 @@ int main(void) {
 
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
+        delta = 0.1f;
         lastTime = currentTime;
 
         userControls.update(camera);
+
 
         glm::mat4 ProjectionMatrix = camera.projection;
         glm::mat4 ViewMatrix = camera.view;
         glm::vec3 CameraPosition(camera.position);
         glm::mat4 ViewProjectionMatrix = ProjectionMatrix * ViewMatrix;
 
-        // Simulate all particles
-        int ParticlesCount = 0;
+        MPM.rasterizeParticlesToGrid();
+
+        MPM.computeGridForces();
+        MPM.updateVelocitiesOnGrid(delta);
+        MPM.timeIntegration();
+        MPM.updateDeformationGradient(delta);
+        MPM.updateParticleVelocities();
+        MPM.particleBasedBodyCollisions();
+        MPM.updateParticlePositions(delta);
+        MPM.saveGridVelocities();
+
+        // Fill the GPU buffer
         for (int i = 0; i < MaxParticles; i++) {
+            const auto p = MPM.getParticles()[i];
+            g_particule_position_size_data[4 * i + 0] = p.pos.x;
+            g_particule_position_size_data[4 * i + 1] = p.pos.y;
+            g_particule_position_size_data[4 * i + 2] = p.pos.z;
 
-            auto& p = MPM.getParticles()[i]; // shortcut
+            g_particule_position_size_data[4 * i + 3] = p.size;
 
-            // Simulate simple physics : gravity only, no collisions
-            p.pos += p.velocity * (float)delta;
-            p.velocity += glm::vec3{ 0, -10, 0 } *(float)delta;
-
-            p.cameradistance = glm::length2(p.pos - CameraPosition);
-
-            // Fill the GPU buffer
-            g_particule_position_size_data[4 * ParticlesCount + 0] = p.pos.x;
-            g_particule_position_size_data[4 * ParticlesCount + 1] = p.pos.y;
-            g_particule_position_size_data[4 * ParticlesCount + 2] = p.pos.z;
-
-            g_particule_position_size_data[4 * ParticlesCount + 3] = p.size;
-
-            g_particule_color_data[4 * ParticlesCount + 0] = p.r;
-            g_particule_color_data[4 * ParticlesCount + 1] = p.g;
-            g_particule_color_data[4 * ParticlesCount + 2] = p.b;
-            g_particule_color_data[4 * ParticlesCount + 3] = p.a;
-
-            ParticlesCount++;
-
+            g_particule_color_data[4 * i + 0] = p.r;
+            g_particule_color_data[4 * i + 1] = p.g;
+            g_particule_color_data[4 * i + 2] = p.b;
+            g_particule_color_data[4 * i + 3] = p.a;
         }
 
         std::sort(std::begin(MPM.getParticles()), std::end(MPM.getParticles()));
@@ -160,15 +166,15 @@ int main(void) {
 
         glBindBuffer(GL_ARRAY_BUFFER, particles_position_buffer);
         glBufferData(GL_ARRAY_BUFFER, MaxParticles * 4 * sizeof(GLfloat), NULL, GL_STREAM_DRAW); // Buffer orphaning, a common way to improve streaming perf. See above link for details.
-        glBufferSubData(GL_ARRAY_BUFFER, 0, ParticlesCount * sizeof(GLfloat) * 4, g_particule_position_size_data);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, MaxParticles * sizeof(GLfloat) * 4, g_particule_position_size_data);
 
         glBindBuffer(GL_ARRAY_BUFFER, particles_color_buffer);
         glBufferData(GL_ARRAY_BUFFER, MaxParticles * 4 * sizeof(GLubyte), NULL, GL_STREAM_DRAW); // Buffer orphaning, a common way to improve streaming perf. See above link for details.
-        glBufferSubData(GL_ARRAY_BUFFER, 0, ParticlesCount * sizeof(GLubyte) * 4, g_particule_color_data);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, MaxParticles * sizeof(GLubyte) * 4, g_particule_color_data);
 
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        //glEnable(GL_BLEND);
+        //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         // Use our shader
         glUseProgram(programID);
@@ -234,7 +240,7 @@ int main(void) {
         // This is equivalent to :
         // for(i in ParticlesCount) : glDrawArrays(GL_TRIANGLE_STRIP, 0, 4), 
         // but faster.
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, ParticlesCount);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, MaxParticles);
 
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);

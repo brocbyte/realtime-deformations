@@ -27,8 +27,8 @@ namespace MaterialPointMethod {
         glm::vec3 velocity;
         float volume;
         glm::vec3 pos;
-        glm::mat3 FElastic;
-        glm::mat3 FPlastic;
+        glm::mat3 FElastic{1.0};
+        glm::mat3 FPlastic{1.0};
 
         // tmp...
         float cameradistance;
@@ -45,9 +45,11 @@ namespace MaterialPointMethod {
     struct Cell {
     public:
         float mass;
-        glm::vec3 velocity;
-        glm::vec3 oldVelocity;
-        glm::vec3 force;
+        glm::vec3 velocity{0.0};
+        glm::vec3 oldVelocity{0.0};
+        glm::vec3 starVelocity{0.0};
+        glm::vec3 force{0.0};
+        float forceLen;
     };
 
     struct LagrangeEulerView {
@@ -63,9 +65,18 @@ namespace MaterialPointMethod {
         void rasterizeParticlesToGrid();
         void computeParticleVolumesAndDensities();
         void computeGridForces();
+        void updateVelocitiesOnGrid(float timeDelta);
+        void gridBasedBodyCollisions();
+        void timeIntegration();
+        void updateDeformationGradient(float timeDelta);
+        void particleBasedBodyCollisions();
 
         void updateParticleVelocities();
         void updateParticlePositions(float timeDelta);
+
+        void saveGridVelocities();
+
+        void printGrid();
     private:
         const uint16_t MAX_I, MAX_J, MAX_K;
         std::vector<std::vector<std::vector<Cell>>> grid;
@@ -75,6 +86,8 @@ namespace MaterialPointMethod {
         const float mu0 = 1.0f;
         const float xi = 10.0f;
         const float lambda0 = 1.0f;
+
+        glm::vec3 bodyCollision(const glm::vec3& pos, const glm::vec3& velocity);
     };
 
 }
