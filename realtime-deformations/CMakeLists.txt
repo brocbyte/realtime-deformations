@@ -51,6 +51,7 @@ add_executable (realtime-deformations
 	"material_point_method.hpp"
 	"material_point_method.cpp"
 	"utils.h"
+	"mathy.hpp"
 	common/shader.cpp
 	common/shader.hpp
 	common/objloader.cpp

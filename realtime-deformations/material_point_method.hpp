@@ -55,7 +55,7 @@ namespace MaterialPointMethod {
     struct LagrangeEulerView {
     public:
         LagrangeEulerView(uint16_t max_i, uint16_t max_j, uint16_t max_k, uint16_t particlesNum);
-        void initParticles();
+        void initParticles(const glm::vec3& particlesOrigin);
         const std::vector<std::vector<std::vector<Cell>>>& getGrid() const {
             return grid;
         };
