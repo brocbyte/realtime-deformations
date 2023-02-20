@@ -134,6 +134,7 @@ int main(void) {
 
         MPM.computeGridForces();
         MPM.updateVelocitiesOnGrid(delta);
+        MPM.gridBasedBodyCollisions();
         MPM.timeIntegration();
         MPM.updateDeformationGradient(delta);
         MPM.updateParticleVelocities();

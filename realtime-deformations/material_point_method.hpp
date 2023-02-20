@@ -67,7 +67,7 @@ namespace MaterialPointMethod {
         void computeGridForces();
         void updateVelocitiesOnGrid(float timeDelta);
         void gridBasedBodyCollisions();
-        void timeIntegration();
+        void timeIntegration(bool implicit = false);
         void updateDeformationGradient(float timeDelta);
         void particleBasedBodyCollisions();
 

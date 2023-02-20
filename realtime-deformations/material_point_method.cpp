@@ -75,12 +75,12 @@ namespace MaterialPointMethod {
                 r * sin(theta) * sin(phi),
                 r * cos(theta)
             );
-            p.pos = particlesOrigin + randomDir;
+            p.pos = particlesOrigin + 0.2f * randomDir;
             p.pos.x = std::clamp(p.pos.x, 0.001f, MAX_I * WeightCalculator::h);
             p.pos.y = std::clamp(p.pos.y, 0.001f, MAX_J * WeightCalculator::h);
             p.pos.z = std::clamp(p.pos.z, 0.001f, MAX_K * WeightCalculator::h);
 
-            p.velocity = glm::vec3{ 0.0f, -90.1f, 0.0f };
+            p.velocity = glm::vec3{ 30.0f, -15.0f, 0.0f };
 
             p.r = rand() % 256;
             p.g = rand() % 256;
@@ -150,7 +150,10 @@ namespace MaterialPointMethod {
     void LagrangeEulerView::updateVelocitiesOnGrid(float timeDelta) {
         MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
             auto& cell = grid[i][j][k];
-            cell.starVelocity = cell.mass > 0.001 ? cell.oldVelocity + cell.force * timeDelta * (1.0f / cell.mass) : glm::vec3{};
+            cell.starVelocity = glm::vec3{};
+            if (cell.mass <= 0.001)
+                continue;
+            cell.starVelocity = cell.oldVelocity + cell.force * timeDelta * (1.0f / cell.mass);
         }
     }
 
@@ -158,14 +161,20 @@ namespace MaterialPointMethod {
     glm::vec3 LagrangeEulerView::bodyCollision(const glm::vec3& pos, const glm::vec3& velocity) {
         std::vector<std::function<float(const glm::vec3&)>> sdfs;
 
-        sdfs.push_back([](const glm::vec3& pos) {
-            const auto center = glm::vec3{ 2.0f, -2.0f, 2.0f };
-            const auto radius = 3.0f;
-            return (pos.x - center.x) * (pos.x - center.x) + (pos.y - center.y) * (pos.y - center.y) + (pos.z - center.z) * (pos.z - center.z) - radius * radius;
-            });
+        //sdfs.push_back([](const glm::vec3& pos) {
+        //    const auto center = glm::vec3{ 2.0f, -2.0f, 2.0f };
+        //    const auto radius = 3.0f;
+        //    return (pos.x - center.x) * (pos.x - center.x) + (pos.y - center.y) * (pos.y - center.y) + (pos.z - center.z) * (pos.z - center.z) - radius * radius;
+        //    });
         sdfs.push_back([](const glm::vec3& pos) {
             return pos.y;
             });
+        //sdfs.push_back([](const glm::vec3& pos) {
+        //    return pos.y - pos.x + 1;
+        //    });
+        //sdfs.push_back([](const glm::vec3& pos) {
+        //    return pos.y + pos.x - 3;
+        //    });
 
         std::vector<std::function<glm::vec3(const glm::vec3&)>> gradients;
         std::transform(std::cbegin(sdfs), std::cend(sdfs), std::back_inserter(gradients), [](const auto& sdf) {
@@ -201,14 +210,19 @@ namespace MaterialPointMethod {
         MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
             auto& cell = grid[i][j][k];
             const auto gridPosition = glm::vec3(i, j, k) * WeightCalculator::h;
-            cell.starVelocity = bodyCollision(gridPosition, cell.velocity);
+            cell.starVelocity = bodyCollision(gridPosition, cell.starVelocity);
         }
     }
 
-    void LagrangeEulerView::timeIntegration() {
-        MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
-            grid[i][j][k].velocity = grid[i][j][k].starVelocity;
+    void LagrangeEulerView::timeIntegration(bool implicit) {
+        if (!implicit) {
+            MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+                grid[i][j][k].velocity = grid[i][j][k].starVelocity;
+            }
+            return;
         }
+        // Conjugate residual method (10-30 iterations)
+
     }
 
     void LagrangeEulerView::updateDeformationGradient(float timeDelta) {
