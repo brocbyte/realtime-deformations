@@ -22,7 +22,30 @@ namespace MaterialPointMethod {
             return 0.5f * modx3 - modx2 + 2.0f / 3.0f;
         }
         else if (modx >= 1.0f && modx < 2.0f) {
-            return (-1.0f / 6.0f) * modx3 + modx2 - 2.0f * modx + 4.0f / 3.0f;
+            return (1.0f / 6.0f) * (2 - modx) * (2 - modx) * (2 - modx);
+        }
+        return 0.0;
+    }
+
+    float WeightCalculator::weightNxDerivative(float x) {
+        const auto modx = abs(x);
+        const auto modx3 = modx * modx * modx;
+        const auto modx2 = modx * modx;
+        if (modx < 1.0f) {
+            if (x >= 0) {
+                return +3.0f / 2.0f * x * x - 2 * x;
+            }
+            else {
+                return -3.0f / 2.0f * x * x - 2 * x;
+            }
+        }
+        else if (modx >= 1.0f && modx < 2.0f) {
+            if (x >= 0) {
+                return -0.5f * (2 - x) * (2 - x);
+            }
+            else {
+                return 0.5f * (2 + x) * (2 + x);
+            }
         }
         return 0.0;
     }
@@ -35,15 +58,14 @@ namespace MaterialPointMethod {
     }
 
     glm::vec3 WeightCalculator::weightIdxPointGradient(GridIndex idx, glm::vec3 pos) {
-        const auto eps = 0.001f;
-        glm::vec3 gradient;
-        glm::vec3 dfs[3] = { glm::vec3{1.0, 0, 0}, glm::vec3{0.0, 1.0, 0.0}, glm::vec3{0.0, 0.0, 1.0} };
-        for (int i = 0; i < 3; ++i) {
-            glm::vec3 posMinus = pos - dfs[i] * eps;
-            glm::vec3 posPlus = pos + dfs[i] * eps;
-            gradient[i] = (weightIdxPoint(idx, posPlus) - weightIdxPoint(idx, posMinus)) / (2.0f * eps);
-        }
-        return gradient;
+        const auto xcomp = (pos.x - idx.i * h) / h;
+        const auto ycomp = (pos.y - idx.j * h) / h;
+        const auto zcomp = (pos.z - idx.k * h) / h;
+        return {
+            (1.0f / h) * weightNxDerivative(xcomp) * weightNx(ycomp) * weightNx(zcomp),
+            (1.0f / h) * weightNx(xcomp) * weightNxDerivative(ycomp) * weightNx(zcomp),
+            (1.0f / h) * weightNx(xcomp) * weightNx(ycomp) * weightNxDerivative(zcomp),
+        };
     }
 
     LagrangeEulerView::LagrangeEulerView(uint16_t max_i, uint16_t max_j, uint16_t max_k, uint16_t particlesNum)
@@ -101,12 +123,9 @@ namespace MaterialPointMethod {
             grid[i][j][k].mass = std::accumulate(particles.cbegin(), particles.cend(), 0.0, [=](int acc, const auto& p) {
                 return acc + p.mass * WeightCalculator::weightIdxPoint({ i, j, k }, p.pos);
                 });
-            grid[i][j][k].velocity = grid[i][j][k].mass > 0 ? std::accumulate(particles.cbegin(), particles.cend(), glm::vec3{}, [=](const auto acc, const auto& p) {
+            grid[i][j][k].velocity = grid[i][j][k].mass != 0.0f ? std::accumulate(particles.cbegin(), particles.cend(), glm::vec3{}, [=](const auto acc, const auto& p) {
                 return acc + p.velocity * p.mass * WeightCalculator::weightIdxPoint({ i, j, k }, p.pos) / grid[i][j][k].mass;
                 }) : glm::vec3{};
-                if (grid[i][j][k].mass > 0) {
-                    std::cout << "(" << i << "," << j << "," << k << "): " << grid[i][j][k].mass << "\n";
-                }
         }
     }
 

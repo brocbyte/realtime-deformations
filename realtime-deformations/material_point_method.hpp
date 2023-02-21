@@ -14,6 +14,7 @@ namespace MaterialPointMethod {
         static float h;
     private:
         static float weightNx(float x);
+        static float weightNxDerivative(float x);
     };
 
     struct GridIndex {
