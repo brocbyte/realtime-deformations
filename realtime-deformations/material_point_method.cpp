@@ -13,7 +13,7 @@
 
 
 namespace MaterialPointMethod {
-    float WeightCalculator::h = 1.0f;
+    float WeightCalculator::h = 0.6f;
     float WeightCalculator::weightNx(float x) {
         const auto modx = abs(x);
         const auto modx3 = modx * modx * modx;
@@ -98,12 +98,15 @@ namespace MaterialPointMethod {
                 r * sin(theta) * sin(phi),
                 r * cos(theta)
             );
-            p.pos = particlesOrigin + 0.5f * randomDir;
+            p.pos = particlesOrigin + 0.6f * randomDir;
             p.pos.x = std::clamp(p.pos.x, 0.001f, MAX_I * WeightCalculator::h);
             p.pos.y = std::clamp(p.pos.y, 0.001f, MAX_J * WeightCalculator::h);
             p.pos.z = std::clamp(p.pos.z, 0.001f, MAX_K * WeightCalculator::h);
 
-            p.velocity = glm::vec3{ 0.0f, -30.0f, 0.0f };
+            const glm::ivec3 gridPos = p.pos / WeightCalculator::h;
+            grid[gridPos.x][gridPos.y][gridPos.z].nParticles++;
+
+            p.velocity = glm::vec3{ 0.0f, -20.0f, 0.0f };
 
             p.r = rand() % 256;
             p.g = rand() % 256;
@@ -117,12 +120,20 @@ namespace MaterialPointMethod {
             p.size = 0.02f;
             p.mass = 0.01f;
             });
+        auto sum = 0;
+        auto cnt = 0;
+        MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+            if (grid[i][j][k].nParticles > 0) {
+                sum += grid[i][j][k].nParticles;
+                cnt++;
+            }
+        }
+        std::cout << "Avg PPC: " << (float)sum / cnt << "\n";
     }
 
     void LagrangeEulerView::rasterizeParticlesToGrid() {
         auto cnt = 0;
         used_cells.clear();
-        const auto prod = glm::outerProduct(glm::vec3{ 1.0, 2.0, 3.0 }, glm::vec3{ -4.0, 5.0, 9.0 });
         MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
             const GridIndex idx = { i, j, k };
             grid[i][j][k].mass = std::accumulate(particles.cbegin(), particles.cend(), 0.0, [&idx](const int acc, const auto& p) {
@@ -145,15 +156,28 @@ namespace MaterialPointMethod {
     }
 
     void LagrangeEulerView::computeParticleVolumesAndDensities() {
+        auto sum = 0.0f;
+        auto cnt = 0;
         for (auto& p : particles) {
-            auto density = 0.0;
+            auto density = 0.0f;
             for (const auto& cell : used_cells) {
                 const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
                 density += grid[i][j][k].mass * WeightCalculator::wip({ i, j, k }, p.pos);
             }
             density /= (WeightCalculator::h * WeightCalculator::h * WeightCalculator::h);
-            p.volume = (density > 0 ? p.mass / density : 0) * 1e-1;
+            sum += density;
+            if (density > 0.0f) {
+                cnt++;
+            }
+            p.volume = density > 0 ? p.mass / density : 0;
         }
+        std::cout << "Avg particle density: " << sum / cnt << "\n";
+        auto cellDensity = 0.0f;
+        for (const auto& cell : used_cells) {
+            const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
+            cellDensity += grid[i][j][k].mass;
+        }
+        std::cout << "Avg cell density: " << cellDensity / used_cells.size() << "\n";
     }
 
 
@@ -168,8 +192,8 @@ namespace MaterialPointMethod {
                 const auto JP = glm::determinant(FP);
                 const auto J = glm::determinant(FE * FP);
                 const float volume = J * p.volume;
-                const float mu = mu0 * glm::exp(xi * (1 - JP));
-                const float lambda = lambda0 * glm::exp(xi * (1 - JP));
+                float mu = mu0 * glm::exp(xi * (1 - JP));
+                float lambda = lambda0 * glm::exp(xi * (1 - JP));
 
                 const auto& [RE, SE] = polarDecomposition(FE);
                 checkPolarDecomposition(RE, SE, FE);
@@ -188,6 +212,7 @@ namespace MaterialPointMethod {
             const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
             auto& cell = grid[i][j][k];
             cell.starVelocity = glm::vec3{};
+            // see mpm-review.pdf, 2.5.4 on how to get rid of this
             if (cell.mass <= 0.001)
                 continue;
             cell.starVelocity = cell.oldVelocity + cell.force * timeDelta * (1.0f / cell.mass);
@@ -202,7 +227,10 @@ namespace MaterialPointMethod {
         //    return pos.y + (pos.x - 3) * (pos.x - 3) - 2;
         //    });
         sdfs.push_back([](const glm::vec3& pos) {
-            return std::max(pos.y - pos.x + 1, pos.y + pos.x - 5);
+            if (abs(pos.x - 3.0f) < 0.3)
+                return std::max({ pos.y - pos.x + 2, pos.y + pos.x - 4 });
+            else
+                return 1.0f;
             });
 
         return std::accumulate(std::cbegin(sdfs), std::cend(sdfs), velocity,
@@ -253,11 +281,16 @@ namespace MaterialPointMethod {
 
     void LagrangeEulerView::updateDeformationGradient(float timeDelta) {
         std::for_each(std::begin(particles), std::end(particles), [=](auto& p) {
-            auto velGradient = glm::mat3{};
+            auto velGradient = glm::mat3{0.0};
             for (const auto& cell : used_cells) {
                 const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
-                velGradient += grid[i][j][k].velocity * WeightCalculator::wipGrad({ i, j, k }, p.pos);
+                const auto grad = WeightCalculator::wipGrad({ i, j, k }, p.pos);
+                if (glm::length(grid[i][j][k].velocity) > 0) {
+                    std::cout << glm::to_string(grid[i][j][k].velocity) << " * " << glm::to_string(grad) << " -> " << glm::to_string(glm::outerProduct(grid[i][j][k].velocity, grad)) << "\n";
+                }
+                velGradient += glm::outerProduct(grid[i][j][k].velocity, grad);
             }
+            //std::cout << glm::to_string(velGradient) << "\n";
             const auto FEpKryshka = (glm::mat3(1.0) + velGradient * timeDelta) * p.FElastic;
             const auto FPpKryshka = p.FPlastic;
 
@@ -270,8 +303,9 @@ namespace MaterialPointMethod {
                 return;
             }
             Eigen::VectorXf s = svd.singularValues();
+            //std::cout << s(0) << " " << s(1) << " " << s(2) << "\n";
             for (int i = 0; i < 3; i++) {
-                s(i) = std::clamp(s(i), (float)(1 - 1.9f * 1e-2), (float)(1 + 5.0f * 1e-3));
+                s(i) = std::clamp(s(i), (float)(1 - 2.5f * 1e-2), (float)(1 + 7.5f * 1e-3));
             }
             Eigen::MatrixXf _S{ {s(0), 0, 0}, {0, s(1), 0}, {0, 0, s(2)} };
             const auto U = eigenToGlm(svd.matrixU());

@@ -42,7 +42,7 @@ namespace MaterialPointMethod {
         glm::vec3 oldVelocity{ 0.0 };
         glm::vec3 starVelocity{ 0.0 };
         glm::vec3 force{ 0.0 };
-        float forceLen;
+        int nParticles{ 0 };
     };
 
     struct LagrangeEulerView {
