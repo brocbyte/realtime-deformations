@@ -1,0 +1,8 @@
+#version 330 core
+layout(location = 0) in vec4 vertexPosition_modelspace;
+
+uniform mat4 uniform_m;
+uniform mat4 VP;
+void main(){
+  gl_Position.xyzw = VP * uniform_m * vertexPosition_modelspace;
+}

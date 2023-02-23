@@ -98,21 +98,21 @@ namespace MaterialPointMethod {
                 r * sin(theta) * sin(phi),
                 r * cos(theta)
             );
-            p.pos = particlesOrigin + 0.2f * randomDir;
+            p.pos = particlesOrigin + 0.5f * randomDir;
             p.pos.x = std::clamp(p.pos.x, 0.001f, MAX_I * WeightCalculator::h);
             p.pos.y = std::clamp(p.pos.y, 0.001f, MAX_J * WeightCalculator::h);
             p.pos.z = std::clamp(p.pos.z, 0.001f, MAX_K * WeightCalculator::h);
 
-            p.velocity = glm::vec3{ 30.0f, -15.0f, 0.0f };
+            p.velocity = glm::vec3{ 0.0f, -30.0f, 0.0f };
 
             p.r = rand() % 256;
             p.g = rand() % 256;
             p.b = rand() % 256;
             p.a = (rand() % 256) / 3;
 
-            p.r = 255;
-            p.g = 255;
-            p.b = 255;
+            //p.r = 255;
+            //p.g = 255;
+            //p.b = 255;
 
             p.size = 0.02f;
             p.mass = 0.01f;
@@ -136,7 +136,7 @@ namespace MaterialPointMethod {
 
         for (const auto& cell : used_cells) {
             const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
-            const auto momentum = std::accumulate(particles.cbegin(), particles.cend(), glm::vec3{0, 0, 0}, [=](const auto acc, const auto& p) {
+            const auto momentum = std::accumulate(particles.cbegin(), particles.cend(), glm::vec3{ 0, 0, 0 }, [=](const auto acc, const auto& p) {
                 return acc + p.velocity * p.mass * WeightCalculator::wip({ i, j, k }, p.pos);
                 });
             grid[i][j][k].velocity = grid[i][j][k].mass != 0.0f ? momentum / grid[i][j][k].mass
@@ -199,23 +199,10 @@ namespace MaterialPointMethod {
         std::vector<std::function<float(const glm::vec3&)>> sdfs;
 
         //sdfs.push_back([](const glm::vec3& pos) {
-        //    const auto center = glm::vec3{ 2.0f, -2.0f, 2.0f };
-        //    const auto radius = 3.0f;
-        //    return (pos.x - center.x) * (pos.x - center.x) + (pos.y - center.y) * (pos.y - center.y) + (pos.z - center.z) * (pos.z - center.z) - radius * radius;
+        //    return pos.y + (pos.x - 3) * (pos.x - 3) - 2;
         //    });
         sdfs.push_back([](const glm::vec3& pos) {
-            return pos.y;
-            });
-        //sdfs.push_back([](const glm::vec3& pos) {
-        //    return pos.y - pos.x + 1;
-        //    });
-        //sdfs.push_back([](const glm::vec3& pos) {
-        //    return pos.y + pos.x - 3;
-        //    });
-
-        std::vector<std::function<glm::vec3(const glm::vec3&)>> gradients;
-        std::transform(std::cbegin(sdfs), std::cend(sdfs), std::back_inserter(gradients), [](const auto& sdf) {
-            return gradient(sdf);
+            return std::max(pos.y - pos.x + 1, pos.y + pos.x - 5);
             });
 
         return std::accumulate(std::cbegin(sdfs), std::cend(sdfs), velocity,

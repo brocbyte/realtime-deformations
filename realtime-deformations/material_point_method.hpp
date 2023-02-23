@@ -31,16 +31,8 @@ namespace MaterialPointMethod {
         glm::mat3 FElastic{ 1.0 };
         glm::mat3 FPlastic{ 1.0 };
 
-        // tmp...
-        float cameradistance;
         unsigned char r, g, b, a; // Color
-        float size, angle, weight;
-        float life; // Remaining life of the particle. if < 0 : dead and unused.
-
-        bool operator<(const Particle& that) const {
-            // Sort in reverse order : far particles drawn first.
-            return this->cameradistance > that.cameradistance;
-        }
+        float size;
     };
 
     struct Cell {
@@ -78,8 +70,8 @@ namespace MaterialPointMethod {
         void saveGridVelocities();
 
         void printGrid();
+        const int MAX_I, MAX_J, MAX_K;
     private:
-        const uint16_t MAX_I, MAX_J, MAX_K;
         std::vector<std::vector<std::vector<Cell>>> grid;
         std::vector<Particle> particles;
         std::vector<glm::ivec3> used_cells;
