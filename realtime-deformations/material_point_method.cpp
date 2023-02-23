@@ -50,14 +50,14 @@ namespace MaterialPointMethod {
         return 0.0;
     }
 
-    float WeightCalculator::weightIdxPoint(GridIndex idx, glm::vec3 pos) {
+    float WeightCalculator::wip(GridIndex idx, glm::vec3 pos) {
         const auto xcomp = (pos.x - idx.i * h) / h;
         const auto ycomp = (pos.y - idx.j * h) / h;
         const auto zcomp = (pos.z - idx.k * h) / h;
         return weightNx(xcomp) * weightNx(ycomp) * weightNx(zcomp);
     }
 
-    glm::vec3 WeightCalculator::weightIdxPointGradient(GridIndex idx, glm::vec3 pos) {
+    glm::vec3 WeightCalculator::wipGrad(GridIndex idx, glm::vec3 pos) {
         const auto xcomp = (pos.x - idx.i * h) / h;
         const auto ycomp = (pos.y - idx.j * h) / h;
         const auto zcomp = (pos.z - idx.k * h) / h;
@@ -119,21 +119,39 @@ namespace MaterialPointMethod {
     }
 
     void LagrangeEulerView::rasterizeParticlesToGrid() {
+        auto cnt = 0;
+        const auto prod = glm::outerProduct(glm::vec3{ 1.0, 2.0, 3.0 }, glm::vec3{ -4.0, 5.0, 9.0 });
         MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
             grid[i][j][k].mass = std::accumulate(particles.cbegin(), particles.cend(), 0.0, [=](int acc, const auto& p) {
-                return acc + p.mass * WeightCalculator::weightIdxPoint({ i, j, k }, p.pos);
+                return acc + p.mass * WeightCalculator::wip({ i, j, k }, p.pos);
                 });
-            grid[i][j][k].velocity = grid[i][j][k].mass != 0.0f ? std::accumulate(particles.cbegin(), particles.cend(), glm::vec3{}, [=](const auto acc, const auto& p) {
-                return acc + p.velocity * p.mass * WeightCalculator::weightIdxPoint({ i, j, k }, p.pos) / grid[i][j][k].mass;
-                }) : glm::vec3{};
+
+            // TODO review this
+            const auto momentum = std::accumulate(particles.cbegin(), particles.cend(), glm::vec3{}, [=](const auto acc, const auto& p) {
+                const auto Xi = glm::vec3(i, j, k) * WeightCalculator::h;
+                glm::mat3 Dp{ 0.0 };
+                MAKE_LOOP(ii, MAX_I, jj, MAX_J, kk, MAX_K) {
+                    const auto Xii = glm::vec3(ii, jj, kk) * WeightCalculator::h;
+                    Dp += WeightCalculator::wip({ ii, jj, kk }, p.pos) * glm::outerProduct(Xii - p.pos, Xii - p.pos);
+                }
+                return acc +
+                    WeightCalculator::wip({ i, j, k }, p.pos) * p.mass * (p.velocity + p.B * glm::inverse(Dp) * (Xi - p.pos));
+                });
+
+            grid[i][j][k].velocity = grid[i][j][k].mass != 0.0f ? momentum / grid[i][j][k].mass
+                : glm::vec3{}; // doing mass < eps is not that good, see paper
+            if (grid[i][j][k].mass > 0) {
+                ++cnt;
+            }
         }
+        std::cout << "Active: " << cnt << "\n";
     }
 
     void LagrangeEulerView::computeParticleVolumesAndDensities() {
         for (auto& p : particles) {
             auto density = 0.0;
             MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
-                density += grid[i][j][k].mass * WeightCalculator::weightIdxPoint({ i, j, k }, p.pos);
+                density += grid[i][j][k].mass * WeightCalculator::wip({ i, j, k }, p.pos);
             }
             density /= (WeightCalculator::h * WeightCalculator::h * WeightCalculator::h);
             p.volume = (density > 0 ? p.mass / density : 0) * 1e-1;
@@ -161,7 +179,7 @@ namespace MaterialPointMethod {
                 if (abs(J) > 0) {
                     cauchyStress = (FE - RE) * glm::transpose(FE) * 2.0f * mu / J + glm::mat3(1.0) * lambda * (JE - 1.0f) * JE / J;
                 }
-                return acc + cauchyStress * volume * WeightCalculator::weightIdxPointGradient({ i, j, k }, p.pos);
+                return acc + cauchyStress * volume * WeightCalculator::wipGrad({ i, j, k }, p.pos);
                     });
         }
     }
@@ -248,7 +266,7 @@ namespace MaterialPointMethod {
         std::for_each(std::begin(particles), std::end(particles), [=](auto& p) {
             auto velGradient = glm::mat3{};
             MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
-                velGradient += grid[i][j][k].velocity * WeightCalculator::weightIdxPointGradient({ i, j, k }, p.pos);
+                velGradient += grid[i][j][k].velocity * WeightCalculator::wipGrad({ i, j, k }, p.pos);
             }
             const auto FEpKryshka = (glm::mat3(1.0) + velGradient * timeDelta) * p.FElastic;
             const auto FPpKryshka = p.FPlastic;
@@ -289,12 +307,15 @@ namespace MaterialPointMethod {
         std::for_each(std::begin(particles), std::end(particles), [=](auto& p) {
             auto picVelocity = glm::vec3{ 0.0f, 0.0f, 0.0f };
             auto flipVelocity = p.velocity;
+            glm::mat3 B{ 0.0 };
             MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
                 const auto& cell = grid[i][j][k]; // shortcut
-                const auto weight = WeightCalculator::weightIdxPoint({ i, j, k }, p.pos);
+                const auto weight = WeightCalculator::wip({ i, j, k }, p.pos);
                 picVelocity += cell.velocity * weight;
                 flipVelocity += (cell.velocity - cell.oldVelocity) * weight;
+                B += weight * glm::outerProduct(cell.velocity, glm::vec3(i, j, k) * WeightCalculator::h - p.pos);
             }
+            p.B = B;
             p.velocity = picVelocity * (1 - alpha) + (flipVelocity * alpha);
             });
     }

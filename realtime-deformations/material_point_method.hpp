@@ -9,8 +9,8 @@ namespace MaterialPointMethod {
 
     struct WeightCalculator {
     public:
-        static float weightIdxPoint(GridIndex idx, glm::vec3 pos);
-        static glm::vec3 weightIdxPointGradient(GridIndex idx, glm::vec3 pos);
+        static float wip(GridIndex idx, glm::vec3 pos);
+        static glm::vec3 wipGrad(GridIndex idx, glm::vec3 pos);
         static float h;
     private:
         static float weightNx(float x);
@@ -28,8 +28,9 @@ namespace MaterialPointMethod {
         glm::vec3 velocity;
         float volume;
         glm::vec3 pos;
-        glm::mat3 FElastic{1.0};
-        glm::mat3 FPlastic{1.0};
+        glm::mat3 FElastic{ 1.0 };
+        glm::mat3 FPlastic{ 1.0 };
+        glm::mat3 B{ 1.0 };
 
         // tmp...
         float cameradistance;
@@ -46,10 +47,10 @@ namespace MaterialPointMethod {
     struct Cell {
     public:
         float mass;
-        glm::vec3 velocity{0.0};
-        glm::vec3 oldVelocity{0.0};
-        glm::vec3 starVelocity{0.0};
-        glm::vec3 force{0.0};
+        glm::vec3 velocity{ 0.0 };
+        glm::vec3 oldVelocity{ 0.0 };
+        glm::vec3 starVelocity{ 0.0 };
+        glm::vec3 force{ 0.0 };
         float forceLen;
     };
 
