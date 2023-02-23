@@ -33,7 +33,7 @@ int main(void) {
         return -1;
     }
 
-    MaterialPointMethod::LagrangeEulerView MPM{ 4, 4, 4, 100 };
+    MaterialPointMethod::LagrangeEulerView MPM{ 4, 4, 4, 300 };
     const auto MaxParticles = MPM.getParticles().size();
     const glm::vec3 particlesOrigin{ 2.0f, 2.0f, 2.0f };
     MPM.initParticles(particlesOrigin);

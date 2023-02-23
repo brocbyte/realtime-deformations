@@ -1,14 +1,13 @@
 #pragma once
-typedef uint16_t u16;
 #include <glm/glm.hpp>
 #include <Eigen/Dense>
 #include <iostream>
 #include "polar_decomposition_3x3.h"
 
 #define MAKE_LOOP(idx1, mIdx1, idx2, mIdx2, idx3, mIdx3) \
-for (u16 idx1 = 0; idx1 < mIdx1; idx1++) \
-    for (u16 idx2 = 0; idx2 < mIdx2; idx2++) \
-        for (u16 idx3 = 0; idx3 < mIdx3; idx3++)
+for (int idx1 = 0; idx1 < mIdx1; idx1++) \
+    for (int idx2 = 0; idx2 < mIdx2; idx2++) \
+        for (int idx3 = 0; idx3 < mIdx3; idx3++)
 
 
 inline Eigen::MatrixXf glmToEigen(const glm::mat3& mat) {

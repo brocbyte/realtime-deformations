@@ -19,7 +19,7 @@ namespace MaterialPointMethod {
 
     struct GridIndex {
     public:
-        uint16_t i, j, k;
+        int i, j, k;
     };
 
     struct Particle {
@@ -30,7 +30,6 @@ namespace MaterialPointMethod {
         glm::vec3 pos;
         glm::mat3 FElastic{ 1.0 };
         glm::mat3 FPlastic{ 1.0 };
-        glm::mat3 B{ 1.0 };
 
         // tmp...
         float cameradistance;
@@ -83,6 +82,7 @@ namespace MaterialPointMethod {
         const uint16_t MAX_I, MAX_J, MAX_K;
         std::vector<std::vector<std::vector<Cell>>> grid;
         std::vector<Particle> particles;
+        std::vector<glm::ivec3> used_cells;
 
         // constants
         const float mu0 = 1.0f;

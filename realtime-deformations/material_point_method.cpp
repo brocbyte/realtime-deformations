@@ -78,6 +78,7 @@ namespace MaterialPointMethod {
                 });
             });
         particles.resize(particlesNum);
+        used_cells.reserve(MAX_I * MAX_J * MAX_K);
     }
 
     void LagrangeEulerView::initParticles(const glm::vec3& particlesOrigin) {
@@ -120,37 +121,34 @@ namespace MaterialPointMethod {
 
     void LagrangeEulerView::rasterizeParticlesToGrid() {
         auto cnt = 0;
+        used_cells.clear();
         const auto prod = glm::outerProduct(glm::vec3{ 1.0, 2.0, 3.0 }, glm::vec3{ -4.0, 5.0, 9.0 });
         MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
-            grid[i][j][k].mass = std::accumulate(particles.cbegin(), particles.cend(), 0.0, [=](int acc, const auto& p) {
-                return acc + p.mass * WeightCalculator::wip({ i, j, k }, p.pos);
+            const GridIndex idx = { i, j, k };
+            grid[i][j][k].mass = std::accumulate(particles.cbegin(), particles.cend(), 0.0, [&idx](const int acc, const auto& p) {
+                return acc + p.mass * WeightCalculator::wip(idx, p.pos);
                 });
-
-            // TODO review this
-            const auto momentum = std::accumulate(particles.cbegin(), particles.cend(), glm::vec3{}, [=](const auto acc, const auto& p) {
-                const auto Xi = glm::vec3(i, j, k) * WeightCalculator::h;
-                glm::mat3 Dp{ 0.0 };
-                MAKE_LOOP(ii, MAX_I, jj, MAX_J, kk, MAX_K) {
-                    const auto Xii = glm::vec3(ii, jj, kk) * WeightCalculator::h;
-                    Dp += WeightCalculator::wip({ ii, jj, kk }, p.pos) * glm::outerProduct(Xii - p.pos, Xii - p.pos);
-                }
-                return acc +
-                    WeightCalculator::wip({ i, j, k }, p.pos) * p.mass * (p.velocity + p.B * glm::inverse(Dp) * (Xi - p.pos));
-                });
-
-            grid[i][j][k].velocity = grid[i][j][k].mass != 0.0f ? momentum / grid[i][j][k].mass
-                : glm::vec3{}; // doing mass < eps is not that good, see paper
             if (grid[i][j][k].mass > 0) {
-                ++cnt;
+                used_cells.push_back(glm::ivec3{ i, j, k });
+                cnt++;
             }
         }
-        std::cout << "Active: " << cnt << "\n";
+
+        for (const auto& cell : used_cells) {
+            const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
+            const auto momentum = std::accumulate(particles.cbegin(), particles.cend(), glm::vec3{0, 0, 0}, [=](const auto acc, const auto& p) {
+                return acc + p.velocity * p.mass * WeightCalculator::wip({ i, j, k }, p.pos);
+                });
+            grid[i][j][k].velocity = grid[i][j][k].mass != 0.0f ? momentum / grid[i][j][k].mass
+                : glm::vec3{}; // doing mass < eps is not that good, see paper
+        }
     }
 
     void LagrangeEulerView::computeParticleVolumesAndDensities() {
         for (auto& p : particles) {
             auto density = 0.0;
-            MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+            for (const auto& cell : used_cells) {
+                const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
                 density += grid[i][j][k].mass * WeightCalculator::wip({ i, j, k }, p.pos);
             }
             density /= (WeightCalculator::h * WeightCalculator::h * WeightCalculator::h);
@@ -160,7 +158,8 @@ namespace MaterialPointMethod {
 
 
     void LagrangeEulerView::computeGridForces() {
-        MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+        for (const auto& cell : used_cells) {
+            const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
             grid[i][j][k].force =
                 -std::accumulate(std::cbegin(particles), std::cend(particles), glm::vec3{}, [=](auto acc, const auto& p) {
                 const glm::mat3& FE = p.FElastic; // shortcut
@@ -185,7 +184,8 @@ namespace MaterialPointMethod {
     }
 
     void LagrangeEulerView::updateVelocitiesOnGrid(float timeDelta) {
-        MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+        for (const auto& cell : used_cells) {
+            const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
             auto& cell = grid[i][j][k];
             cell.starVelocity = glm::vec3{};
             if (cell.mass <= 0.001)
@@ -244,7 +244,8 @@ namespace MaterialPointMethod {
     }
 
     void LagrangeEulerView::gridBasedBodyCollisions() {
-        MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+        for (const auto& cell : used_cells) {
+            const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
             auto& cell = grid[i][j][k];
             const auto gridPosition = glm::vec3(i, j, k) * WeightCalculator::h;
             cell.starVelocity = bodyCollision(gridPosition, cell.starVelocity);
@@ -253,7 +254,8 @@ namespace MaterialPointMethod {
 
     void LagrangeEulerView::timeIntegration(bool implicit) {
         if (!implicit) {
-            MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+            for (const auto& cell : used_cells) {
+                const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
                 grid[i][j][k].velocity = grid[i][j][k].starVelocity;
             }
             return;
@@ -265,7 +267,8 @@ namespace MaterialPointMethod {
     void LagrangeEulerView::updateDeformationGradient(float timeDelta) {
         std::for_each(std::begin(particles), std::end(particles), [=](auto& p) {
             auto velGradient = glm::mat3{};
-            MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+            for (const auto& cell : used_cells) {
+                const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
                 velGradient += grid[i][j][k].velocity * WeightCalculator::wipGrad({ i, j, k }, p.pos);
             }
             const auto FEpKryshka = (glm::mat3(1.0) + velGradient * timeDelta) * p.FElastic;
@@ -307,15 +310,13 @@ namespace MaterialPointMethod {
         std::for_each(std::begin(particles), std::end(particles), [=](auto& p) {
             auto picVelocity = glm::vec3{ 0.0f, 0.0f, 0.0f };
             auto flipVelocity = p.velocity;
-            glm::mat3 B{ 0.0 };
-            MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+            for (const auto& cell : used_cells) {
+                const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
                 const auto& cell = grid[i][j][k]; // shortcut
                 const auto weight = WeightCalculator::wip({ i, j, k }, p.pos);
                 picVelocity += cell.velocity * weight;
                 flipVelocity += (cell.velocity - cell.oldVelocity) * weight;
-                B += weight * glm::outerProduct(cell.velocity, glm::vec3(i, j, k) * WeightCalculator::h - p.pos);
             }
-            p.B = B;
             p.velocity = picVelocity * (1 - alpha) + (flipVelocity * alpha);
             });
     }
@@ -329,17 +330,12 @@ namespace MaterialPointMethod {
             });
     }
     void LagrangeEulerView::saveGridVelocities() {
-        MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
+        for (const auto& cell : used_cells) {
+            const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
             auto& cell = grid[i][j][k]; // shortcut
             cell.oldVelocity = cell.velocity;
         }
     }
     void LagrangeEulerView::printGrid() {
-        for (u16 i = 0; i < MAX_I; i++) {
-            for (u16 k = 0; k < MAX_K; k++) {
-                std::cout << glm::to_string(grid[i][0][k].velocity) << " | ";
-            }
-            std::cout << "\n";
-        }
     }
 };
