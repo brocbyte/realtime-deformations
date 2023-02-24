@@ -36,7 +36,7 @@ int main(void) {
         return -1;
     }
 
-    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 300 };
+    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 500 };
     const auto MaxParticles = MPM.getParticles().size();
     const glm::vec3 particlesOrigin{ 3.0f, 2.0f, 3.0f };
     MPM.initParticles(particlesOrigin);
@@ -94,12 +94,13 @@ int main(void) {
 
     FPSCounter fpsCounter;
     Camera camera;
-    camera.position = particlesOrigin + glm::vec3{ 0, -1, 5 };
+    camera.position = particlesOrigin + glm::vec3{ 0, 0.3f, 4 };
     UserControls userControls{ window };
 
     double lastTime = glfwGetTime();
     userControls.update(camera);
     Mesh bboxMesh{ {{0.0, 0.0, 0.0}, glm::vec3(MPM.MAX_I, MPM.MAX_J, MPM.MAX_K) * MaterialPointMethod::WeightCalculator::h} };
+    srand(time(NULL));
     do
     {
         // Clear the screen
@@ -107,7 +108,7 @@ int main(void) {
 
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
-        delta = 1e-3;
+        delta = 1e-3 / 2;
         lastTime = currentTime;
 
         userControls.update(camera);
@@ -119,6 +120,11 @@ int main(void) {
         glm::mat4 ViewProjectionMatrix = ProjectionMatrix * ViewMatrix;
 
         BBox::draw_bbox(objectsProgramID, ViewProjectionMatrix, bboxMesh);
+        glm::vec3 myRotationAxis(0.0, 0.0, 1.0);
+        const auto rotation = glm::rotate(glm::mat4(), glm::radians(45.0f), myRotationAxis);
+        const auto translation = glm::translate(glm::mat4(), glm::vec3(3, 0.7, 3));
+        const auto scaling = glm::scale(glm::mat4(), glm::vec3(0.21f, 0.21f, 0.6f));
+        BBox::draw_box(objectsProgramID, ViewProjectionMatrix, translation * rotation * scaling);
 
         MPM.rasterizeParticlesToGrid();
         MPM.computeGridForces();
@@ -193,8 +199,8 @@ void drawParticles(MaterialPointMethod::LagrangeEulerView& MPM, GLfloat* g_parti
     glBufferSubData(GL_ARRAY_BUFFER, 0, MaxParticles * sizeof(GLubyte) * 4, g_particule_color_data);
 
 
-    //glEnable(GL_BLEND);
-    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Use our shader
     glUseProgram(programID);
@@ -265,6 +271,8 @@ void drawParticles(MaterialPointMethod::LagrangeEulerView& MPM, GLfloat* g_parti
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(2);
+
+    glDisable(GL_BLEND);
 }
 
 int initLibs() {

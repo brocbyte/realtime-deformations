@@ -1,8 +1,13 @@
 #version 330 core
-layout(location = 0) in vec4 vertexPosition_modelspace;
-
+layout(location = 0) in vec3 vertexPosition_modelspace;
+layout(location = 4) in vec3 vertexColor;
+out vec3 fragmentColor;
 uniform mat4 uniform_m;
 uniform mat4 VP;
 void main(){
-  gl_Position.xyzw = VP * uniform_m * vertexPosition_modelspace;
+  vec4 uniformPosition;
+  uniformPosition.xyz = vertexPosition_modelspace;
+  uniformPosition.w = 1.0;
+  gl_Position.xyzw = VP * uniform_m * uniformPosition;
+  fragmentColor = vertexColor;
 }

@@ -14,5 +14,6 @@ public:
 class BBox {
 public:
     static void draw_bbox(GLuint ProgramID, const glm::mat4& VP, const Mesh& mesh);
+    static void draw_box(GLuint ProgramID, const glm::mat4& VP, const glm::mat4& transformation);
 };
 

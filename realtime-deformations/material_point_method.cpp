@@ -13,7 +13,7 @@
 
 
 namespace MaterialPointMethod {
-    const auto massEps = 0.03f;
+    const auto massEps = 0.05f;
     float WeightCalculator::h = 0.6f;
     float WeightCalculator::weightNx(float x) {
         const auto modx = abs(x);
@@ -112,11 +112,12 @@ namespace MaterialPointMethod {
             p.r = rand() % 256;
             p.g = rand() % 256;
             p.b = rand() % 256;
-            p.a = (rand() % 256) / 3;
+            p.a = (rand() % 256);
 
-            //p.r = 255;
-            //p.g = 255;
-            //p.b = 255;
+            p.r = 255;
+            p.g = 255;
+            p.b = 255;
+            p.a = 255;
 
             p.size = 0.02f;
             p.mass = 22.0f;
@@ -230,7 +231,7 @@ namespace MaterialPointMethod {
             if (abs(pos.x - 3.0f) < 0.3)
                 return std::max({ pos.y - pos.x + 2, pos.y + pos.x - 4 });
             else
-                return 1.0f;
+                return std::numeric_limits<float>::infinity();
             });
 
         return std::accumulate(std::cbegin(sdfs), std::cend(sdfs), velocity,
