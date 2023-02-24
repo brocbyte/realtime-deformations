@@ -36,13 +36,13 @@ int main(void) {
         return -1;
     }
 
-    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 100 };
+    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 300 };
     const auto MaxParticles = MPM.getParticles().size();
     const glm::vec3 particlesOrigin{ 3.0f, 2.0f, 3.0f };
     MPM.initParticles(particlesOrigin);
-    MPM.saveGridVelocities();
     MPM.rasterizeParticlesToGrid();
     MPM.computeParticleVolumesAndDensities();
+    MPM.saveGridVelocities();
 
     GLuint VertexArrayID;
     glGenVertexArrays(1, &VertexArrayID);
@@ -107,7 +107,7 @@ int main(void) {
 
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
-        delta = 1e-2;
+        delta = 1e-3;
         lastTime = currentTime;
 
         userControls.update(camera);
