@@ -108,7 +108,7 @@ int main(void) {
 
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
-        delta = 1e-3 / 2;
+        delta = 1e-4;
         lastTime = currentTime;
 
         userControls.update(camera);

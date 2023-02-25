@@ -82,6 +82,10 @@ namespace MaterialPointMethod {
         const float lambda0 = 1.0f;
 
         glm::vec3 bodyCollision(const glm::vec3& pos, const glm::vec3& velocity);
+
+        float Energy(const glm::vec3& gVelocity, float timeDelta);
+        float ElasticPotential(const glm::vec3& gPositionDiff, const GridIndex& gIdx);
+        float ElasticPlasticEnergyDensity(const glm::mat3& FE, const glm::mat3& FP);
     };
 
 }

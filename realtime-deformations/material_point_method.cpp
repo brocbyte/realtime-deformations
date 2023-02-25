@@ -107,7 +107,7 @@ namespace MaterialPointMethod {
             const glm::ivec3 gridPos = p.pos / WeightCalculator::h;
             grid[gridPos.x][gridPos.y][gridPos.z].nParticles++;
 
-            p.velocity = glm::vec3{ 0.0f, -40.0f, 0.0f };
+            p.velocity = glm::vec3{ 5.0f, -40.0f, 0.0f };
 
             p.r = rand() % 256;
             p.g = rand() % 256;
@@ -257,6 +257,45 @@ namespace MaterialPointMethod {
                 }
                 return vrel + objectVelocity;
             });
+    }
+
+    float LagrangeEulerView::Energy(const glm::vec3& gVelocity, float timeDelta) {
+        auto energy = 0.0f;
+        for (const auto& cell : used_cells) {
+            const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
+            const auto& rCell = grid[i][j][k]; // shortcut
+            const auto g0Position = glm::vec3(i, j, k) * WeightCalculator::h;
+            const auto velDiffNorm = glm::length(gVelocity - rCell.velocity);
+            energy += 0.5 * rCell.mass * velDiffNorm * velDiffNorm + ElasticPotential(timeDelta * gVelocity, {i, j, k});
+        }
+        return energy;
+    }
+
+    float LagrangeEulerView::ElasticPotential(const glm::vec3& gPositionDiff, const GridIndex& gIdx) {
+        return std::accumulate(std::cbegin(particles), std::cend(particles), 0.0f, [&](const auto acc, const auto& p) {
+            const auto& FP = p.FPlastic;
+            const auto FE = (glm::mat3(1.0) + glm::outerProduct(gPositionDiff, WeightCalculator::wipGrad(gIdx, p.pos))) * p.FElastic;
+            return acc + p.volume * ElasticPlasticEnergyDensity(FE, FP);
+            });
+    }
+
+    float LagrangeEulerView::ElasticPlasticEnergyDensity(const glm::mat3& FE, const glm::mat3& FP) {
+        auto mu = [=](const auto& fp) {
+            return mu0 * glm::exp(xi * 1 - glm::determinant(fp));
+        };
+        auto lambda = [=](const auto& fp) {
+            return lambda0 * glm::exp(xi * 1 - glm::determinant(fp));
+        };
+        const auto& [RE, SE] = polarDecomposition(FE);
+        auto fNorm2 = [](const glm::mat3& m) -> float {
+            auto val = 0.0f;
+            for (int i = 0; i < 3; ++i)
+                for (int j = 0; j < 3; ++j)
+                    val += m[i][j] * m[i][j];
+            return val;
+        };
+        const auto JE = glm::determinant(FE);
+        return mu(FP) * fNorm2(FE - RE) + lambda(FP) / 2 * (JE - 1) * (JE - 1);
     }
 
     void LagrangeEulerView::gridBasedBodyCollisions() {
