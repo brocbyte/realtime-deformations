@@ -36,7 +36,7 @@ int main(void) {
         return -1;
     }
 
-    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 500 };
+    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 5 };
     const auto MaxParticles = MPM.getParticles().size();
     const glm::vec3 particlesOrigin{ 3.0f, 2.0f, 3.0f };
     MPM.initParticles(particlesOrigin);
@@ -130,7 +130,7 @@ int main(void) {
         MPM.computeGridForces();
         MPM.updateVelocitiesOnGrid(delta);
         MPM.gridBasedBodyCollisions();
-        MPM.timeIntegration();
+        MPM.timeIntegration(delta);
         MPM.updateDeformationGradient(delta);
         MPM.updateParticleVelocities();
         MPM.particleBasedBodyCollisions();

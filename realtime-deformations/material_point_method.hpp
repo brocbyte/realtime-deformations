@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include <stdint.h>
+#include <Eigen/Dense>
 
 namespace MaterialPointMethod {
     struct GridIndex;
@@ -60,7 +61,7 @@ namespace MaterialPointMethod {
         void computeGridForces();
         void updateVelocitiesOnGrid(float timeDelta);
         void gridBasedBodyCollisions();
-        void timeIntegration(bool implicit = false);
+        void timeIntegration(float timeDelta, bool implicit = true);
         void updateDeformationGradient(float timeDelta);
         void particleBasedBodyCollisions();
 
@@ -83,8 +84,8 @@ namespace MaterialPointMethod {
 
         glm::vec3 bodyCollision(const glm::vec3& pos, const glm::vec3& velocity);
 
-        float Energy(const glm::vec3& gVelocity, float timeDelta);
-        float ElasticPotential(const glm::vec3& gPositionDiff, const GridIndex& gIdx);
+        float Energy(const Eigen::VectorXf& velocities, float timeDelta);
+        float ElasticPotential(float timeDelta);
         float ElasticPlasticEnergyDensity(const glm::mat3& FE, const glm::mat3& FP);
     };
 

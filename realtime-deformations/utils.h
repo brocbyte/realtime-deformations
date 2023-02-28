@@ -50,10 +50,26 @@ inline glm::mat3 polarToGlm(const std::array<float, 9>& mat) {
     return m;
 }
 
-inline std::pair<glm::mat3, glm::mat3> polarDecomposition(const glm::mat3& m) {
-    std::array<float, 9> _RE, _SE;
-    polar::polar_decomposition(_RE.data(), _SE.data(), glmToPolar(m).data());
-    return { polarToGlm(_RE), polarToGlm(_SE) };
+inline std::pair<glm::mat3, glm::mat3> polarDecomposition(const glm::mat3& _m, bool usingSVD = false) {
+    if (usingSVD) {
+        const auto m = glmToEigen(_m);
+        Eigen::JacobiSVD<Eigen::MatrixXf, Eigen::ComputeFullU | Eigen::ComputeFullV> svd(m);
+        if (svd.info() != Eigen::ComputationInfo::Success) {
+            std::cout << "Error!: " << svd.info() << "\n";
+            return {};
+        }
+        Eigen::VectorXf s = svd.singularValues();
+        Eigen::MatrixXf _S{ {s(0), 0, 0}, {0, s(1), 0}, {0, 0, s(2)} };
+        const auto U = eigenToGlm(svd.matrixU());
+        const auto V = eigenToGlm(svd.matrixV());
+        const auto S = eigenToGlm(_S);
+        return { U * glm::transpose(V), V * S * glm::transpose(V) };
+    }
+    else {
+        std::array<float, 9> _RE, _SE;
+        polar::polar_decomposition(_RE.data(), _SE.data(), glmToPolar(_m).data());
+        return { polarToGlm(_RE), polarToGlm(_SE) };
+    }
 }
 
 inline void checkPolarDecomposition(const glm::mat3& RE, const glm::mat3& SE, const glm::mat3& FE) {

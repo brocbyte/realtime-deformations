@@ -197,7 +197,7 @@ namespace MaterialPointMethod {
                 float lambda = lambda0 * glm::exp(xi * (1 - JP));
 
                 const auto& [RE, SE] = polarDecomposition(FE);
-                checkPolarDecomposition(RE, SE, FE);
+                //checkPolarDecomposition(RE, SE, FE);
 
                 glm::mat3 cauchyStress{ 1.0 };
                 if (abs(J) > 0) {
@@ -242,7 +242,7 @@ namespace MaterialPointMethod {
                     return acc;
                 }
                 savedDistance = currentDistance;
-                const auto normal = gradient(sdf)(pos);
+                const auto normal = gradient(sdf, pos, 3);
                 const auto objectVelocity = glm::vec3{}; // TODO moving objects...
                 const auto relVelocity = velocity - objectVelocity;
                 const float vn = glm::dot(relVelocity, normal);
@@ -259,22 +259,31 @@ namespace MaterialPointMethod {
             });
     }
 
-    float LagrangeEulerView::Energy(const glm::vec3& gVelocity, float timeDelta) {
+    float LagrangeEulerView::Energy(const Eigen::VectorXf& velocities, float timeDelta) {
         auto energy = 0.0f;
+        auto velIdx = 0;
         for (const auto& cell : used_cells) {
             const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
             const auto& rCell = grid[i][j][k]; // shortcut
             const auto g0Position = glm::vec3(i, j, k) * WeightCalculator::h;
-            const auto velDiffNorm = glm::length(gVelocity - rCell.velocity);
-            energy += 0.5 * rCell.mass * velDiffNorm * velDiffNorm + ElasticPotential(timeDelta * gVelocity, {i, j, k});
+            const auto velocity = glm::vec3(velocities[velIdx], velocities[velIdx + 1], velocities[velIdx + 2]);
+            const auto velDiffNorm2 = glm::dot(velocity - rCell.velocity, velocity - rCell.velocity);
+            energy += 0.5 * rCell.mass * velDiffNorm2;
+            ++velIdx;
         }
+        energy += ElasticPotential(timeDelta);
         return energy;
     }
 
-    float LagrangeEulerView::ElasticPotential(const glm::vec3& gPositionDiff, const GridIndex& gIdx) {
+    float LagrangeEulerView::ElasticPotential(float timeDelta) {
         return std::accumulate(std::cbegin(particles), std::cend(particles), 0.0f, [&](const auto acc, const auto& p) {
             const auto& FP = p.FPlastic;
-            const auto FE = (glm::mat3(1.0) + glm::outerProduct(gPositionDiff, WeightCalculator::wipGrad(gIdx, p.pos))) * p.FElastic;
+            auto FE = glm::mat3(1.0);
+            for (const auto& cell : used_cells) {
+                const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
+                FE += glm::outerProduct(glm::vec3{} *timeDelta/*TODO*/, WeightCalculator::wipGrad({ i, j, k }, p.pos));
+            }
+            FE *= p.FElastic;
             return acc + p.volume * ElasticPlasticEnergyDensity(FE, FP);
             });
     }
@@ -307,13 +316,29 @@ namespace MaterialPointMethod {
         }
     }
 
-    void LagrangeEulerView::timeIntegration(bool implicit) {
+    void LagrangeEulerView::timeIntegration(float timeDelta, bool implicit) {
         if (!implicit) {
             for (const auto& cell : used_cells) {
                 const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
                 grid[i][j][k].velocity = grid[i][j][k].starVelocity;
             }
             return;
+        }
+        else {
+            auto E = [&](const Eigen::VectorXf& vel) {
+                return Energy(vel, timeDelta);
+            };
+            Eigen::VectorXf initialVelocitites(used_cells.size() * 3);
+            for (size_t i = 0; i < initialVelocitites.size(); ++i) {
+                initialVelocitites[i] = 0.0f;
+            }
+            const auto velocities = optimize(E, initialVelocitites, 0.01);
+            auto velIdx = 0;
+            for (const auto& cell : used_cells) {
+                const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
+                grid[i][j][k].velocity = glm::vec3(velocities[velIdx], velocities[velIdx + 1], velocities[velIdx + 2]);
+                ++velIdx;
+            }
         }
         // Conjugate residual method (10-30 iterations)
 
