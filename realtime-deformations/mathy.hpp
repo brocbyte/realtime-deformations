@@ -1,6 +1,18 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <functional>
+#include <iomanip>
+#include <iostream>
+#include <Eigen/Sparse>
+#include <unsupported/Eigen/IterativeSolvers>
+#define FIXED_FLOAT(x) std::fixed<<std::setprecision(5)<<(x)
+
+// common optimization parameters
+static const auto MAX_ITERATIONS = 300;
+
+// line search parameters
+static const auto c1 = 1e-4f;
+static const auto c2 = 0.9f;
 
 inline Eigen::VectorXf gradient(const std::function<float(const Eigen::VectorXf&)>& f, const Eigen::VectorXf& x, size_t dimensions, float delta = 0.001) {
     Eigen::VectorXf gradient(dimensions);
@@ -38,10 +50,13 @@ inline glm::vec3 gradient(const std::function<float(const glm::vec3&)>& f, const
     return gradient;
 }
 
-inline Eigen::MatrixXf hessian(const std::function<float(const Eigen::VectorXf&)>& f, const Eigen::VectorXf& x, float delta = 0.001) {
+inline Eigen::SparseMatrix<float> hessian(const std::function<float(const Eigen::VectorXf&)>& f, const Eigen::VectorXf& x, float delta = 0.001) {
     const int dimensions = x.size();
-    Eigen::MatrixXf output(dimensions, dimensions);
+    Eigen::SparseMatrix<float> output(dimensions, dimensions);
     Eigen::VectorXf ei(dimensions), ej(dimensions);
+    for (int i = 0; i < dimensions; ++i) {
+        ei[i] = ej[i] = 0.0f;
+    }
     for (int i = 0; i < dimensions; ++i) {
         if (i > 0) {
             ei[i - 1] = 0.0f;
@@ -52,11 +67,14 @@ inline Eigen::MatrixXf hessian(const std::function<float(const Eigen::VectorXf&)
             }
             ei[i] = 1;
             ej[j] = 1;
-            auto f1 = f(x + delta * ei + delta * ej);
-            auto f2 = f(x + delta * ei - delta * ej);
-            auto f3 = f(x - delta * ei + delta * ej);
-            auto f4 = f(x - delta * ei - delta * ej);
-            output(i, j) = (f1 - f2 - f3 + f4) / (4 * delta * delta);
+
+            const auto f1 = f(x + delta * ei + delta * ej);
+            const auto f2 = f(x + delta * ei - delta * ej);
+            const auto f3 = f(x - delta * ei + delta * ej);
+            const auto f4 = f(x - delta * ei - delta * ej);
+            if ((f1 - f2 - f3 + f4) != 0.0f) {
+                output.insert(i, j) = (f1 - f2 - f3 + f4) / (4 * delta * delta);
+            }
         }
     }
     return output;
@@ -67,24 +85,41 @@ Eigen::VectorXf optimize(const std::function<float(const Eigen::VectorXf&)>& f, 
     Eigen::VectorXf guess = initialGuess;
     std::cout << "##################\n";
     std::cout << "Initial: " << f(guess) << "\n";
-    while (stepsCnt++ < 30) {
-        const Eigen::VectorXf grad = gradient(f, guess, guess.size());
-        const Eigen::MatrixXf H = hessian(f, guess);
+    auto newtonSteps = 0;
+    auto gradSteps = 0;
+    auto logResult = [&stepsCnt, &newtonSteps, &gradSteps](float value) {
+        std::cout << "solved in " << stepsCnt << "\n";
+        std::cout << "newton steps: " << newtonSteps << "\n";
+        std::cout << "gradient steps: " << gradSteps << "\n";
+        std::cout << "value: " << value << "\n";
+        std::cout << "##################\n";
+    };
+    while (stepsCnt++ < MAX_ITERATIONS) {
+        Eigen::VectorXf grad = gradient(f, guess, guess.size());
+        Eigen::VectorXf dx(grad.size());
         if (grad.norm() < terminationCriterion) {
+            logResult(f(guess));
             return guess;
         }
-        Eigen::VectorXf dx = -H.inverse() * grad;
+        Eigen::SparseMatrix<float> H = hessian(f, guess);
+        Eigen::MINRES<Eigen::SparseMatrix<float>, 1, Eigen::DiagonalPreconditioner<float>> mr;
+        mr.setTolerance(std::min(0.5f, std::sqrt(std::max(grad.norm(), terminationCriterion))));
+        mr.compute(H);
+        dx = mr.solve(-grad);
         auto suitableDownhill = [](auto dx, auto gE) -> bool {
             return dx.dot(gE) < -(1e-2) * dx.norm() * gE.norm();
         };
         if (suitableDownhill(dx, grad)) {
             dx = dx;
+            ++newtonSteps;
         }
         else if (suitableDownhill(-dx, grad)) {
             dx = -dx;
+            ++newtonSteps;
         }
         else {
             dx = -grad;
+            ++gradSteps;
         }
 
 
@@ -93,25 +128,28 @@ Eigen::VectorXf optimize(const std::function<float(const Eigen::VectorXf&)>& f, 
         if (len > l) {
             dx = dx / (len / l);
         }
+        auto aIsSuitable = [=](auto a) {
+            const Eigen::VectorXf newGuess = guess + a * dx;
+            const auto i1 = f(newGuess) <= f(guess) + c1 * a * dx.dot(grad);
+            const auto i2 = abs(dx.dot(gradient(f, newGuess, newGuess.size()))) <= c2 * abs(dx.dot(grad));
+            return i1 && i2;
+        };
         auto lineSearch = [=]() {
-            auto a = 1.0f;
-            auto c1 = 1e-4f;
-            auto c2 = 0.9f;
+            if (aIsSuitable(1.0f)) {
+                return 1.0f;
+            }
+            auto a = 4096.0f;
             auto cnt = 0;
-            while (cnt++ < 100) {
-                const Eigen::VectorXf newGuess = guess + a * dx;
-                const auto i1 = f(newGuess) <= f(guess) + c1 * a * dx.dot(grad);
-                const auto i2 = abs(dx.dot(gradient(f, newGuess, newGuess.size()))) <= c2 * abs(dx.dot(grad));
-                if (i1 && i2)
+            while (cnt++ < 50) {
+                if (aIsSuitable(a))
                     return a;
-                a *= 0.7;
+                a *= 0.5;
             }
             return a;
         };
         const auto alpha = lineSearch();
         guess += alpha * dx;
-        std::cout << "Current: " << f(guess) << "\n";
     }
-    std::cout << "##################\n";
+    logResult(f(guess));
     return guess;
 }

@@ -10,7 +10,7 @@ for (int idx1 = 0; idx1 < mIdx1; idx1++) \
         for (int idx3 = 0; idx3 < mIdx3; idx3++)
 
 
-inline Eigen::MatrixXf glmToEigen(const glm::mat3& mat) {
+inline Eigen::MatrixXf glmToEigen(const glm::dmat3& mat) {
     Eigen::MatrixXf m{ 3, 3 };
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
@@ -20,8 +20,8 @@ inline Eigen::MatrixXf glmToEigen(const glm::mat3& mat) {
     return m;
 }
 
-inline glm::mat3 eigenToGlm(const Eigen::MatrixXf mat) {
-    glm::mat3 m;
+inline m3t eigenToGlm(const Eigen::MatrixXf mat) {
+    m3t m;
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
             m[i][j] = mat(i, j);
@@ -30,8 +30,8 @@ inline glm::mat3 eigenToGlm(const Eigen::MatrixXf mat) {
     return m;
 }
 
-inline std::array<float, 9> glmToPolar(const glm::mat3& mat) {
-    std::array<float, 9> m{};
+inline std::array<ftype, 9> glmToPolar(const m3t& mat) {
+    std::array<ftype, 9> m{};
     for (int q = 0; q < 3; q++) {
         for (int w = 0; w < 3; w++) {
             m[q * 3 + w] = mat[q][w];
@@ -40,8 +40,8 @@ inline std::array<float, 9> glmToPolar(const glm::mat3& mat) {
     return m;
 }
 
-inline glm::mat3 polarToGlm(const std::array<float, 9>& mat) {
-    glm::mat3 m{};
+inline m3t polarToGlm(const std::array<ftype, 9>& mat) {
+    m3t m{};
     for (int q = 0; q < 3; q++) {
         for (int w = 0; w < 3; w++) {
             m[q][w] = mat[q * 3 + w];
@@ -50,7 +50,7 @@ inline glm::mat3 polarToGlm(const std::array<float, 9>& mat) {
     return m;
 }
 
-inline std::pair<glm::mat3, glm::mat3> polarDecomposition(const glm::mat3& _m, bool usingSVD = false) {
+inline std::pair<m3t, m3t> polarDecomposition(const m3t& _m, bool usingSVD = false) {
     if (usingSVD) {
         const auto m = glmToEigen(_m);
         Eigen::JacobiSVD<Eigen::MatrixXf, Eigen::ComputeFullU | Eigen::ComputeFullV> svd(m);

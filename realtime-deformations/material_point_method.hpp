@@ -5,17 +5,21 @@
 #include <stdint.h>
 #include <Eigen/Dense>
 
+typedef float ftype;
+typedef glm::vec3 v3t;
+typedef glm::mat3 m3t;
+
 namespace MaterialPointMethod {
     struct GridIndex;
 
     struct WeightCalculator {
     public:
-        static float wip(GridIndex idx, glm::vec3 pos);
-        static glm::vec3 wipGrad(GridIndex idx, glm::vec3 pos);
+        static ftype wip(glm::ivec3 idx, v3t pos);
+        static v3t wipGrad(glm::ivec3 idx, v3t pos);
         static float h;
     private:
-        static float weightNx(float x);
-        static float weightNxDerivative(float x);
+        static ftype weightNx(ftype x);
+        static ftype weightNxDerivative(ftype x);
     };
 
     struct GridIndex {
@@ -25,12 +29,14 @@ namespace MaterialPointMethod {
 
     struct Particle {
     public:
-        float mass;
-        glm::vec3 velocity;
-        float volume;
-        glm::vec3 pos;
-        glm::mat3 FElastic{ 1.0 };
-        glm::mat3 FPlastic{ 1.0 };
+        ftype mass;
+        v3t velocity;
+        ftype volume;
+        v3t pos;
+        m3t FElastic{ 1.0 };
+        m3t FPlastic{ 1.0 };
+        m3t B{ 0.0 };
+        m3t D{ 0.0 };
 
         unsigned char r, g, b, a; // Color
         float size;
@@ -38,11 +44,10 @@ namespace MaterialPointMethod {
 
     struct Cell {
     public:
-        float mass;
-        glm::vec3 velocity{ 0.0 };
-        glm::vec3 oldVelocity{ 0.0 };
-        glm::vec3 starVelocity{ 0.0 };
-        glm::vec3 force{ 0.0 };
+        ftype mass;
+        v3t velocity{ 0.0 };
+        v3t oldVelocity{ 0.0 };
+        v3t force{ 0.0 };
         int nParticles{ 0 };
     };
 
@@ -58,19 +63,17 @@ namespace MaterialPointMethod {
         };
         void rasterizeParticlesToGrid();
         void computeParticleVolumesAndDensities();
-        void computeGridForces();
-        void updateVelocitiesOnGrid(float timeDelta);
-        void gridBasedBodyCollisions();
-        void timeIntegration(float timeDelta, bool implicit = true);
-        void updateDeformationGradient(float timeDelta);
-        void particleBasedBodyCollisions();
+        void timeIntegration(ftype timeDelta, bool implicit = true);
+        void updateDeformationGradient(ftype timeDelta);
 
         void updateParticleVelocities();
-        void updateParticlePositions(float timeDelta);
+        void updateParticlePositions(ftype timeDelta);
 
         void saveGridVelocities();
 
         void printGrid();
+        v3t gridMomentum();
+        v3t particleMomentum();
         const int MAX_I, MAX_J, MAX_K;
     private:
         std::vector<std::vector<std::vector<Cell>>> grid;
@@ -78,15 +81,13 @@ namespace MaterialPointMethod {
         std::vector<glm::ivec3> used_cells;
 
         // constants
-        const float mu0 = 1.0f;
-        const float xi = 10.0f;
-        const float lambda0 = 1.0f;
+        const ftype mu0 = 1.0f;
+        const ftype xi = 10.0f;
+        const ftype lambda0 = 1.0f;
 
-        glm::vec3 bodyCollision(const glm::vec3& pos, const glm::vec3& velocity);
-
-        float Energy(const Eigen::VectorXf& velocities, float timeDelta);
-        float ElasticPotential(float timeDelta);
-        float ElasticPlasticEnergyDensity(const glm::mat3& FE, const glm::mat3& FP);
+        ftype Energy(const Eigen::VectorXf& velocities, ftype timeDelta);
+        ftype ElasticPotential(const Eigen::VectorXf& velocities, ftype timeDelta);
+        ftype ElasticPlasticEnergyDensity(const m3t& FE, const m3t& FP);
     };
 
 }

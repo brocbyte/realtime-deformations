@@ -36,7 +36,7 @@ int main(void) {
         return -1;
     }
 
-    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 5 };
+    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 1 };
     const auto MaxParticles = MPM.getParticles().size();
     const glm::vec3 particlesOrigin{ 3.0f, 2.0f, 3.0f };
     MPM.initParticles(particlesOrigin);
@@ -99,7 +99,7 @@ int main(void) {
 
     double lastTime = glfwGetTime();
     userControls.update(camera);
-    Mesh bboxMesh{ {{0.0, 0.0, 0.0}, glm::vec3(MPM.MAX_I, MPM.MAX_J, MPM.MAX_K) * MaterialPointMethod::WeightCalculator::h} };
+    Mesh bboxMesh{ {{0.0, 0.0, 0.0}, v3t(MPM.MAX_I, MPM.MAX_J, MPM.MAX_K) * MaterialPointMethod::WeightCalculator::h} };
     srand(time(NULL));
     do
     {
@@ -127,13 +127,9 @@ int main(void) {
         BBox::draw_box(objectsProgramID, ViewProjectionMatrix, translation * rotation * scaling);
 
         MPM.rasterizeParticlesToGrid();
-        MPM.computeGridForces();
-        MPM.updateVelocitiesOnGrid(delta);
-        MPM.gridBasedBodyCollisions();
         MPM.timeIntegration(delta);
         MPM.updateDeformationGradient(delta);
         MPM.updateParticleVelocities();
-        MPM.particleBasedBodyCollisions();
         MPM.updateParticlePositions(delta);
         MPM.saveGridVelocities();
 
