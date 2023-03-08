@@ -12,11 +12,13 @@
 #include <limits>
 
 #define APIC
+// TODO момент сохраняется с одной частицей; когда несколько происходит хрень
+// чекнуть начальные значения массы/расстояния у того чела в гите
 
 
 namespace MaterialPointMethod {
-    const auto massEps = 0.0f;
-    ftype WeightCalculator::h = 0.6f;
+    const auto massEps = 0.000f;
+    ftype WeightCalculator::h = 1.0f;
     inline ftype WeightCalculator::weightNx(ftype x) {
         const auto modx = abs(x);
         const auto modx3 = modx * modx * modx;
@@ -88,7 +90,7 @@ namespace MaterialPointMethod {
     }
 
     void LagrangeEulerView::initParticles(const glm::vec3& particlesOrigin) {
-        std::for_each(std::begin(particles), std::end(particles), [=](auto& p) {
+        std::for_each(std::begin(particles), std::end(particles), [=, idx = 0](auto& p) mutable {
             auto randFloat = [](auto low, auto high) {
                 return low + (rand() % 2000) / 2000.0 * (high - low);
             };
@@ -112,7 +114,7 @@ namespace MaterialPointMethod {
             const glm::ivec3 gridPos = p.pos / WeightCalculator::h;
             grid[gridPos.x][gridPos.y][gridPos.z].nParticles++;
 
-            p.velocity = v3t(0.0, -20.0, 0.0);
+            p.velocity = v3t(0.0, -40.0, 0.0);
 
             p.r = rand() % 256;
             p.g = rand() % 256;
@@ -126,6 +128,7 @@ namespace MaterialPointMethod {
 
             p.size = 0.02;
             p.mass = 1.0;
+            ++idx;
             });
         auto sum = 0;
         auto cnt = 0;
@@ -142,32 +145,26 @@ namespace MaterialPointMethod {
     void LagrangeEulerView::rasterizeParticlesToGrid() {
         used_cells.clear();
         MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
-            grid[i][j][k].mass = std::accumulate(particles.cbegin(), particles.cend(), 0.0, [idx = glm::ivec3(i, j, k)](const int acc, const auto& p) {
-                return acc + p.mass * WeightCalculator::wip(idx, p.pos);
-                });
-            if (grid[i][j][k].mass > massEps) {
+            const auto idx = glm::ivec3(i, j, k);
+            grid[i][j][k].mass = 0.0f;
+            for (const auto& p : particles) {
+                grid[i][j][k].mass += p.mass * WeightCalculator::wip(idx, p.pos);
+            }
+            if (grid[i][j][k].mass != 0.0f) {
                 used_cells.push_back(glm::ivec3(i, j, k));
             }
         }
-        std::for_each(std::begin(particles), std::end(particles), [=](auto& p) {
-            auto Dp = m3t(0.0);
-            MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
-                const auto Xi = v3t(i, j, k) * WeightCalculator::h;
-                const auto XiXp = Xi - p.pos;
-                Dp += WeightCalculator::wip({ i, j, k }, p.pos) * glm::outerProduct(XiXp, XiXp);
-            }
-            p.D = Dp;
-            });
+        auto DpInverse = glm::inverse(glm::mat3(1.0) * (1.0f / 3.0f) * WeightCalculator::h * WeightCalculator::h);
         for (const auto& idx : used_cells) {
             const auto& [i, j, k] = std::array<int, 3>{ idx.x, idx.y, idx.z };
-            const auto momentum = std::accumulate(particles.cbegin(), particles.cend(), v3t(0, 0, 0), [=](const auto acc, const auto& p) {
+            auto momentum = v3t(0, 0, 0);
+            for (const auto& p : particles) {
                 const auto weight = WeightCalculator::wip(idx, p.pos);
                 const auto Xi = v3t(idx) * WeightCalculator::h;
-                return acc + weight * p.mass * (p.velocity + p.B * glm::inverse(p.D) * (Xi - p.pos));
-                });
+                momentum += weight * p.mass * (p.velocity + p.B * DpInverse * (Xi - p.pos));
+            }
             grid[i][j][k].velocity = momentum / grid[i][j][k].mass;
         }
-        std::cout << "Grid momentum after rasterization: " << glm::to_string(gridMomentum()) << "\n";
     }
 
     void LagrangeEulerView::computeParticleVolumesAndDensities() {
@@ -184,7 +181,7 @@ namespace MaterialPointMethod {
             if (density > 0.0f) {
                 cnt++;
             }
-            p.volume = density > 0 ? p.mass / density : 0;
+            p.volume = density > 0 ? (p.mass / density) : 0;
         }
         std::cout << "Avg particle density: " << sum / cnt << "\n";
         auto cellDensity = 0.0f;
@@ -258,14 +255,13 @@ namespace MaterialPointMethod {
             initialVelocities[velIdx + 2] = grid[i][j][k].velocity[2];
             velIdx += 3;
         }
-        const auto velocities = optimize(E, initialVelocities, 0.1);
+        const auto velocities = optimize(E, initialVelocities);
         velIdx = 0;
         for (const auto& cell : used_cells) {
             const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
             grid[i][j][k].velocity = glm::vec3(velocities[velIdx], velocities[velIdx + 1], velocities[velIdx + 2]);
             velIdx += 3;
         }
-        std::cout << "Grid momentum after optimization: " << glm::to_string(gridMomentum()) << "\n";
     }
 
     void LagrangeEulerView::updateDeformationGradient(ftype timeDelta) {
@@ -305,10 +301,9 @@ namespace MaterialPointMethod {
     }
 
     void LagrangeEulerView::updateParticleVelocities() {
-        std::cout << "Grid momentum before to particles: " << glm::to_string(gridMomentum()) << "\n";
 #ifdef APIC
         auto particlesMomentum = glm::vec3(0.0f, 0.0f, 0.0f);
-        std::for_each(std::begin(particles), std::end(particles), [&](auto& p) {
+        std::for_each(std::begin(particles), std::end(particles), [&, idx = 0](auto& p) mutable {
             p.velocity = glm::vec3(0.0f, 0.0f, 0.0f);
             p.B = glm::mat3(0.0f);
             for (const auto& idx : used_cells) {
@@ -319,8 +314,8 @@ namespace MaterialPointMethod {
                 p.B += weight * glm::outerProduct(grid[i][j][k].velocity, (Xi - p.pos));
             }
             particlesMomentum += p.velocity * p.mass;
+            ++idx;
             });
-        std::cout << "Particles momentum: " << glm::to_string(particleMomentum()) << "\n";
 
 #else
         const ftype alpha = 0.95;
@@ -342,7 +337,6 @@ namespace MaterialPointMethod {
     void LagrangeEulerView::updateParticlePositions(ftype timeDelta) {
         std::for_each(std::begin(particles), std::end(particles), [=](auto& p) {
             p.pos += p.velocity * timeDelta;
-            std::cout << glm::to_string(p.velocity) << "\n";
             p.pos.x = std::clamp(p.pos.x, (ftype)0.0, MAX_I * WeightCalculator::h);
             p.pos.y = std::clamp(p.pos.y, (ftype)0.0, MAX_J * WeightCalculator::h);
             p.pos.z = std::clamp(p.pos.z, (ftype)0.0, MAX_K * WeightCalculator::h);
@@ -359,16 +353,20 @@ namespace MaterialPointMethod {
     }
     glm::vec3 LagrangeEulerView::gridMomentum() {
         glm::vec3 momentum(0, 0, 0);
+        ftype mass = 0.0f;
         for (const auto& cell : used_cells) {
             const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
             momentum += grid[i][j][k].velocity * grid[i][j][k].mass;
+            mass += grid[i][j][k].mass;
         }
         return momentum;
     }
 
     glm::vec3 LagrangeEulerView::particleMomentum() {
-        return std::accumulate(std::cbegin(particles), std::cend(particles), v3t(0, 0, 0), [&](const auto acc, const auto& p) {
-            return acc + p.velocity * p.mass;
-            });
+        auto out = v3t(0, 0, 0);
+        for (const auto& p : particles) {
+            out += p.velocity * p.mass;
+        }
+        return out;
     }
 };

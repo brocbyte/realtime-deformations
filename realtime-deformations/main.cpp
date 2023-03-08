@@ -36,9 +36,9 @@ int main(void) {
         return -1;
     }
 
-    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 1 };
+    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 50 };
     const auto MaxParticles = MPM.getParticles().size();
-    const glm::vec3 particlesOrigin{ 3.0f, 2.0f, 3.0f };
+    const glm::vec3 particlesOrigin{ 3.0f, 6.0f, 3.0f };
     MPM.initParticles(particlesOrigin);
     MPM.rasterizeParticlesToGrid();
     MPM.computeParticleVolumesAndDensities();
@@ -108,7 +108,7 @@ int main(void) {
 
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
-        delta = 1e-4;
+        delta = 1e-3;
         lastTime = currentTime;
 
         userControls.update(camera);

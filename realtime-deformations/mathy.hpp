@@ -9,6 +9,7 @@
 
 // common optimization parameters
 static const auto MAX_ITERATIONS = 300;
+static const auto terminationCriterion = 1e-2f;
 
 // line search parameters
 static const auto c1 = 1e-4f;
@@ -80,19 +81,19 @@ inline Eigen::SparseMatrix<float> hessian(const std::function<float(const Eigen:
     return output;
 }
 
-Eigen::VectorXf optimize(const std::function<float(const Eigen::VectorXf&)>& f, const Eigen::VectorXf& initialGuess, float terminationCriterion) {
+Eigen::VectorXf optimize(const std::function<float(const Eigen::VectorXf&)>& f, const Eigen::VectorXf& initialGuess) {
     auto stepsCnt = 0;
     Eigen::VectorXf guess = initialGuess;
-    std::cout << "##################\n";
-    std::cout << "Initial: " << f(guess) << "\n";
+    //std::cout << "##################\n";
+    //std::cout << "Initial: " << f(guess) << "\n";
     auto newtonSteps = 0;
     auto gradSteps = 0;
     auto logResult = [&stepsCnt, &newtonSteps, &gradSteps](float value) {
-        std::cout << "solved in " << stepsCnt << "\n";
-        std::cout << "newton steps: " << newtonSteps << "\n";
-        std::cout << "gradient steps: " << gradSteps << "\n";
-        std::cout << "value: " << value << "\n";
-        std::cout << "##################\n";
+        //std::cout << "solved in " << stepsCnt << "\n";
+        //std::cout << "newton steps: " << newtonSteps << "\n";
+        //std::cout << "gradient steps: " << gradSteps << "\n";
+        //std::cout << "value: " << value << "\n";
+        //std::cout << "##################\n";
     };
     while (stepsCnt++ < MAX_ITERATIONS) {
         Eigen::VectorXf grad = gradient(f, guess, guess.size());
@@ -134,7 +135,7 @@ Eigen::VectorXf optimize(const std::function<float(const Eigen::VectorXf&)>& f, 
             const auto i2 = abs(dx.dot(gradient(f, newGuess, newGuess.size()))) <= c2 * abs(dx.dot(grad));
             return i1 && i2;
         };
-        auto lineSearch = [=]() {
+        auto lineSearch = [&]() {
             if (aIsSuitable(1.0f)) {
                 return 1.0f;
             }
@@ -149,6 +150,9 @@ Eigen::VectorXf optimize(const std::function<float(const Eigen::VectorXf&)>& f, 
         };
         const auto alpha = lineSearch();
         guess += alpha * dx;
+        if (f(guess - alpha * dx) - f(guess) < terminationCriterion) {
+            break;
+        }
     }
     logResult(f(guess));
     return guess;
