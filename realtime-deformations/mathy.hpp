@@ -1,14 +1,12 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <functional>
-#include <iomanip>
-#include <iostream>
 #include <Eigen/Sparse>
 #include <unsupported/Eigen/IterativeSolvers>
-#define FIXED_FLOAT(x) std::fixed<<std::setprecision(5)<<(x)
+#include <logger.hpp>
 
 // common optimization parameters
-static const auto MAX_ITERATIONS = 300;
+static const auto MAX_ITERATIONS = 5;
 static const auto terminationCriterion = 1e-2f;
 
 // line search parameters
@@ -46,7 +44,7 @@ inline glm::vec3 gradient(const std::function<float(const glm::vec3&)>& f, const
         dfs[i] = 1.0f;
         const auto f1 = f(x - dfs * delta);
         const auto f2 = f(x + dfs * delta);
-        gradient[i] = (f1 - f2) / (2.0f * delta);
+        gradient[i] = (f2 - f1) / (2.0f * delta);
     }
     return gradient;
 }
@@ -81,79 +79,80 @@ inline Eigen::SparseMatrix<float> hessian(const std::function<float(const Eigen:
     return output;
 }
 
-Eigen::VectorXf optimize(const std::function<float(const Eigen::VectorXf&)>& f, const Eigen::VectorXf& initialGuess) {
-    auto stepsCnt = 0;
-    Eigen::VectorXf guess = initialGuess;
-    //std::cout << "##################\n";
-    //std::cout << "Initial: " << f(guess) << "\n";
-    auto newtonSteps = 0;
-    auto gradSteps = 0;
-    auto logResult = [&stepsCnt, &newtonSteps, &gradSteps](float value) {
-        //std::cout << "solved in " << stepsCnt << "\n";
-        //std::cout << "newton steps: " << newtonSteps << "\n";
-        //std::cout << "gradient steps: " << gradSteps << "\n";
-        //std::cout << "value: " << value << "\n";
-        //std::cout << "##################\n";
-    };
-    while (stepsCnt++ < MAX_ITERATIONS) {
-        Eigen::VectorXf grad = gradient(f, guess, guess.size());
-        Eigen::VectorXf dx(grad.size());
-        if (grad.norm() < terminationCriterion) {
-            logResult(f(guess));
-            return guess;
-        }
-        Eigen::SparseMatrix<float> H = hessian(f, guess);
-        Eigen::MINRES<Eigen::SparseMatrix<float>, 1, Eigen::DiagonalPreconditioner<float>> mr;
-        mr.setTolerance(std::min(0.5f, std::sqrt(std::max(grad.norm(), terminationCriterion))));
-        mr.compute(H);
-        dx = mr.solve(-grad);
-        auto suitableDownhill = [](auto dx, auto gE) -> bool {
-            return dx.dot(gE) < -(1e-2) * dx.norm() * gE.norm();
+class Optimizer : public Loggable {
+public:
+    Eigen::VectorXf optimize(const std::function<float(const Eigen::VectorXf&)>& f, const Eigen::VectorXf& initialGuess) {
+        auto stepsCnt = 0;
+        Eigen::VectorXf guess = initialGuess;
+        logger.log(Logger::LogLevel::INFO, "Initial value", f(guess));
+        auto newtonSteps = 0;
+        auto gradSteps = 0;
+        auto logResult = [&stepsCnt, &newtonSteps, &gradSteps, this](float value) {
+            logger.log(Logger::LogLevel::INFO, "Number of steps", stepsCnt);
+            logger.log(Logger::LogLevel::INFO, "Newton steps", newtonSteps);
+            logger.log(Logger::LogLevel::INFO, "Gradient steps", gradSteps);
+            logger.log(Logger::LogLevel::INFO, "Result value", value);
         };
-        if (suitableDownhill(dx, grad)) {
-            dx = dx;
-            ++newtonSteps;
-        }
-        else if (suitableDownhill(-dx, grad)) {
-            dx = -dx;
-            ++newtonSteps;
-        }
-        else {
-            dx = -grad;
-            ++gradSteps;
-        }
+        while (stepsCnt++ < MAX_ITERATIONS) {
+            Eigen::VectorXf grad = gradient(f, guess, guess.size());
+            Eigen::VectorXf dx(grad.size());
+            if (grad.norm() < terminationCriterion) {
+                logResult(f(guess));
+                return guess;
+            }
+            Eigen::SparseMatrix<float> H = hessian(f, guess);
+            Eigen::MINRES<Eigen::SparseMatrix<float>, 1, Eigen::DiagonalPreconditioner<float>> mr;
+            mr.setTolerance(std::min(0.5f, std::sqrt(std::max(grad.norm(), terminationCriterion))));
+            mr.compute(H);
+            dx = mr.solve(-grad);
+            auto suitableDownhill = [](auto dx, auto gE) -> bool {
+                return dx.dot(gE) < -(1e-2) * dx.norm() * gE.norm();
+            };
+            if (suitableDownhill(dx, grad)) {
+                dx = dx;
+                ++newtonSteps;
+            }
+            else if (suitableDownhill(-dx, grad)) {
+                dx = -dx;
+                ++newtonSteps;
+            }
+            else {
+                dx = -grad;
+                ++gradSteps;
+            }
 
 
-        const auto l = 1e3f;
-        const auto len = dx.norm();
-        if (len > l) {
-            dx = dx / (len / l);
-        }
-        auto aIsSuitable = [=](auto a) {
-            const Eigen::VectorXf newGuess = guess + a * dx;
-            const auto i1 = f(newGuess) <= f(guess) + c1 * a * dx.dot(grad);
-            const auto i2 = abs(dx.dot(gradient(f, newGuess, newGuess.size()))) <= c2 * abs(dx.dot(grad));
-            return i1 && i2;
-        };
-        auto lineSearch = [&]() {
-            if (aIsSuitable(1.0f)) {
-                return 1.0f;
+            const auto l = 1e3f;
+            const auto len = dx.norm();
+            if (len > l) {
+                dx = dx / (len / l);
             }
-            auto a = 4096.0f;
-            auto cnt = 0;
-            while (cnt++ < 50) {
-                if (aIsSuitable(a))
-                    return a;
-                a *= 0.5;
+            auto aIsSuitable = [=](auto a) {
+                const Eigen::VectorXf newGuess = guess + a * dx;
+                const auto i1 = f(newGuess) <= f(guess) + c1 * a * dx.dot(grad);
+                const auto i2 = abs(dx.dot(gradient(f, newGuess, newGuess.size()))) <= c2 * abs(dx.dot(grad));
+                return i1 && i2;
+            };
+            auto lineSearch = [&]() {
+                if (aIsSuitable(1.0f)) {
+                    return 1.0f;
+                }
+                auto a = 4096.0f;
+                auto cnt = 0;
+                while (cnt++ < 20) {
+                    if (aIsSuitable(a))
+                        return a;
+                    a *= 0.5;
+                }
+                return a;
+            };
+            const auto alpha = lineSearch();
+            guess += alpha * dx;
+            if (f(guess - alpha * dx) - f(guess) < terminationCriterion) {
+                break;
             }
-            return a;
-        };
-        const auto alpha = lineSearch();
-        guess += alpha * dx;
-        if (f(guess - alpha * dx) - f(guess) < terminationCriterion) {
-            break;
         }
+        logResult(f(guess));
+        return guess;
     }
-    logResult(f(guess));
-    return guess;
-}
+};

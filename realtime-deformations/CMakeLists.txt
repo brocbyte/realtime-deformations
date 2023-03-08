@@ -54,6 +54,7 @@ add_executable (realtime-deformations
 	"mathy.hpp"
 	"mesh.hpp"
 	"mesh.cpp"
+	"logger.hpp"
 	common/shader.cpp
 	common/shader.hpp
 	common/objloader.cpp

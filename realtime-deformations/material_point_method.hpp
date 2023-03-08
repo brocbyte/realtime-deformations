@@ -4,27 +4,19 @@
 #include <vector>
 #include <stdint.h>
 #include <Eigen/Dense>
-
-typedef float ftype;
-typedef glm::vec3 v3t;
-typedef glm::mat3 m3t;
+#include <constants.hpp>
+#include <logger.hpp>
 
 namespace MaterialPointMethod {
-    struct GridIndex;
 
     struct WeightCalculator {
     public:
         static ftype wip(glm::ivec3 idx, v3t pos);
         static v3t wipGrad(glm::ivec3 idx, v3t pos);
-        static float h;
+        static ftype h;
     private:
         static ftype weightNx(ftype x);
         static ftype weightNxDerivative(ftype x);
-    };
-
-    struct GridIndex {
-    public:
-        int i, j, k;
     };
 
     struct Particle {
@@ -46,15 +38,13 @@ namespace MaterialPointMethod {
     public:
         ftype mass;
         v3t velocity{ 0.0 };
-        v3t oldVelocity{ 0.0 };
-        v3t force{ 0.0 };
         int nParticles{ 0 };
     };
 
-    struct LagrangeEulerView {
+    struct LagrangeEulerView : Loggable {
     public:
         LagrangeEulerView(uint16_t max_i, uint16_t max_j, uint16_t max_k, uint16_t particlesNum);
-        void initParticles(const glm::vec3& particlesOrigin);
+        void initializeParticles(const v3t& particlesOrigin, const v3t& velocity);
         const std::vector<std::vector<std::vector<Cell>>>& getGrid() const {
             return grid;
         };
@@ -63,17 +53,12 @@ namespace MaterialPointMethod {
         };
         void rasterizeParticlesToGrid();
         void computeParticleVolumesAndDensities();
-        void timeIntegration(ftype timeDelta, bool implicit = true);
+        void timeIntegration(ftype timeDelta);
         void updateDeformationGradient(ftype timeDelta);
 
         void updateParticleVelocities();
         void updateParticlePositions(ftype timeDelta);
 
-        void saveGridVelocities();
-
-        void printGrid();
-        v3t gridMomentum();
-        v3t particleMomentum();
         const int MAX_I, MAX_J, MAX_K;
     private:
         std::vector<std::vector<std::vector<Cell>>> grid;
@@ -88,6 +73,11 @@ namespace MaterialPointMethod {
         ftype Energy(const Eigen::VectorXf& velocities, ftype timeDelta);
         ftype ElasticPotential(const Eigen::VectorXf& velocities, ftype timeDelta);
         ftype ElasticPlasticEnergyDensity(const m3t& FE, const m3t& FP);
+
+        v3t gridMomentum();
+        v3t particleMomentum();
+        ftype gridMass();
+        v3t clampPosition(const v3t& vec);
     };
 
 }

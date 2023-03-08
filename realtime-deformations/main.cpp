@@ -27,22 +27,22 @@ GLFWwindow* window;
 #include "material_point_method.hpp"
 #include "mesh.hpp"
 
-int initLibs();
+int initializeLibs();
 
 void drawParticles(MaterialPointMethod::LagrangeEulerView& MPM, GLfloat* g_particule_position_size_data, GLubyte* g_particule_color_data, const GLuint& particles_position_buffer, const GLuint& particles_color_buffer, const GLuint& programID, const GLuint& Texture, const GLuint& TextureID, const GLuint& CameraRight_worldspace_ID, glm::mat4& ViewMatrix, const GLuint& CameraUp_worldspace_ID, const GLuint& ViewProjMatrixID, glm::mat4& ViewProjectionMatrix, const GLuint& billboard_vertex_buffer);
 
 int main(void) {
-    if (initLibs() == -1) {
+    if (initializeLibs() == -1) {
         return -1;
     }
 
-    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, 50 };
-    const auto MaxParticles = MPM.getParticles().size();
-    const glm::vec3 particlesOrigin{ 3.0f, 6.0f, 3.0f };
-    MPM.initParticles(particlesOrigin);
+    const auto numParticles = 50;
+    const glm::vec3 particlesOrigin(3.0f, 6.0f, 3.0f);
+    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, numParticles };
+    MPM.setLevel(Logger::LogLevel::WARNING);
+    MPM.initializeParticles(particlesOrigin, { 0.0f, -20.0f, 0.0f });
     MPM.rasterizeParticlesToGrid();
     MPM.computeParticleVolumesAndDensities();
-    MPM.saveGridVelocities();
 
     GLuint VertexArrayID;
     glGenVertexArrays(1, &VertexArrayID);
@@ -59,8 +59,8 @@ int main(void) {
     // Fragment shader
     GLuint TextureID = glGetUniformLocation(particlesProgramID, "myTextureSampler");
 
-    static GLfloat* g_particule_position_size_data = new GLfloat[MaxParticles * 4];
-    static GLubyte* g_particule_color_data = new GLubyte[MaxParticles * 4];
+    static GLfloat* g_particule_position_size_data = new GLfloat[numParticles * 4];
+    static GLubyte* g_particule_color_data = new GLubyte[numParticles * 4];
 
     GLuint Texture = loadDDS((RESOURCES_PATH + "particle.DDS").c_str());
 
@@ -82,14 +82,14 @@ int main(void) {
     glGenBuffers(1, &particles_position_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, particles_position_buffer);
     // Initialize with empty (NULL) buffer : it will be updated later, each frame.
-    glBufferData(GL_ARRAY_BUFFER, MaxParticles * 4 * sizeof(GLfloat), NULL, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, numParticles * 4 * sizeof(GLfloat), NULL, GL_STREAM_DRAW);
 
     // The VBO containing the colors of the particles
     GLuint particles_color_buffer;
     glGenBuffers(1, &particles_color_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, particles_color_buffer);
     // Initialize with empty (NULL) buffer : it will be updated later, each frame.
-    glBufferData(GL_ARRAY_BUFFER, MaxParticles * 4 * sizeof(GLubyte), NULL, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, numParticles * 4 * sizeof(GLubyte), NULL, GL_STREAM_DRAW);
 
 
     FPSCounter fpsCounter;
@@ -122,7 +122,7 @@ int main(void) {
         BBox::draw_bbox(objectsProgramID, ViewProjectionMatrix, bboxMesh);
         glm::vec3 myRotationAxis(0.0, 0.0, 1.0);
         const auto rotation = glm::rotate(glm::mat4(), glm::radians(45.0f), myRotationAxis);
-        const auto translation = glm::translate(glm::mat4(), glm::vec3(3, 0.7, 3));
+        const auto translation = glm::translate(glm::mat4(), glm::vec3(3, 1.7, 3));
         const auto scaling = glm::scale(glm::mat4(), glm::vec3(0.21f, 0.21f, 0.6f));
         BBox::draw_box(objectsProgramID, ViewProjectionMatrix, translation * rotation * scaling);
 
@@ -131,7 +131,6 @@ int main(void) {
         MPM.updateDeformationGradient(delta);
         MPM.updateParticleVelocities();
         MPM.updateParticlePositions(delta);
-        MPM.saveGridVelocities();
 
         drawParticles(MPM, g_particule_position_size_data, g_particule_color_data, particles_position_buffer, particles_color_buffer, particlesProgramID, Texture, TextureID, CameraRight_worldspace_ID, ViewMatrix, CameraUp_worldspace_ID, ViewProjMatrixID, ViewProjectionMatrix, billboard_vertex_buffer);
 
@@ -271,7 +270,7 @@ void drawParticles(MaterialPointMethod::LagrangeEulerView& MPM, GLfloat* g_parti
     glDisable(GL_BLEND);
 }
 
-int initLibs() {
+int initializeLibs() {
     // Initialise GLFW
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");

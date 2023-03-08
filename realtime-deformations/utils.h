@@ -3,6 +3,7 @@
 #include <Eigen/Dense>
 #include <iostream>
 #include "polar_decomposition_3x3.h"
+#include <constants.hpp>
 
 #define MAKE_LOOP(idx1, mIdx1, idx2, mIdx2, idx3, mIdx3) \
 for (int idx1 = 0; idx1 < mIdx1; idx1++) \
