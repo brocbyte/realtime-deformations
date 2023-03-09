@@ -39,7 +39,7 @@ int main(void) {
     const auto numParticles = 50;
     const glm::vec3 particlesOrigin(3.0f, 6.0f, 3.0f);
     MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, numParticles };
-    MPM.setLevel(Logger::LogLevel::WARNING);
+    MPM.setLevel(MaterialPointMethod::DEFAULT_LOG_LEVEL_MPM);
     MPM.initializeParticles(particlesOrigin, { 0.0f, -20.0f, 0.0f });
     MPM.rasterizeParticlesToGrid();
     MPM.computeParticleVolumesAndDensities();

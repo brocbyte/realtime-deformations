@@ -80,3 +80,21 @@ inline void checkPolarDecomposition(const glm::mat3& RE, const glm::mat3& SE, co
     }
 }
 
+inline v3t generateRandomInsideUnitBall(ftype R) {
+    auto randFloat = [](auto low, auto high) {
+        return low + (rand() % 2000) / 2000.0 * (high - low);
+    };
+    const auto phi = randFloat(0.0f, 2.0 * 3.1415);
+    const auto costheta = randFloat(0.0, 2.0) - 1.0;
+    const auto u = randFloat(0.0, 1.0);
+    const auto theta = acos(costheta);
+    const auto r = R * std::cbrt(u);
+
+    return {
+        r * sin(theta) * cos(phi),
+        r * sin(theta) * sin(phi),
+        r * cos(theta)
+    };
+
+}
+

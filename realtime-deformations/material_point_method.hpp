@@ -8,6 +8,8 @@
 #include <logger.hpp>
 
 namespace MaterialPointMethod {
+    const auto DEFAULT_LOG_LEVEL_OPTIMIZER = Logger::LogLevel::WARNING;
+    const auto DEFAULT_LOG_LEVEL_MPM = Logger::LogLevel::WARNING;
 
     struct WeightCalculator {
     public:
@@ -78,6 +80,12 @@ namespace MaterialPointMethod {
         v3t particleMomentum();
         ftype gridMass();
         v3t clampPosition(const v3t& vec);
+
+        // debugging
+        ftype averagePPC();
+        ftype averageParticleDensity();
+        ftype averageCellDensity();
+
     };
 
 }
