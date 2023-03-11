@@ -36,11 +36,11 @@ int main(void) {
         return -1;
     }
 
-    const auto numParticles = 50;
-    const glm::vec3 particlesOrigin(3.0f, 6.0f, 3.0f);
-    MaterialPointMethod::LagrangeEulerView MPM{ 10, 10, 10, numParticles };
+    const auto numParticles = 1000;
+    const glm::vec3 particlesOrigin(1.0f, 1.5f, 1.0f);
+    MaterialPointMethod::LagrangeEulerView MPM{ 40, 40, 40, numParticles };
     MPM.setLevel(MaterialPointMethod::DEFAULT_LOG_LEVEL_MPM);
-    MPM.initializeParticles(particlesOrigin, { 0.0f, -20.0f, 0.0f });
+    MPM.initializeParticles(particlesOrigin, { 0.0f, -100.0f, 0.0f });
     MPM.rasterizeParticlesToGrid();
     MPM.computeParticleVolumesAndDensities();
 
@@ -122,12 +122,13 @@ int main(void) {
         BBox::draw_bbox(objectsProgramID, ViewProjectionMatrix, bboxMesh);
         glm::vec3 myRotationAxis(0.0, 0.0, 1.0);
         const auto rotation = glm::rotate(glm::mat4(), glm::radians(45.0f), myRotationAxis);
-        const auto translation = glm::translate(glm::mat4(), glm::vec3(3, 1.7, 3));
-        const auto scaling = glm::scale(glm::mat4(), glm::vec3(0.21f, 0.21f, 0.6f));
+        const auto translation = glm::translate(glm::mat4(), glm::vec3(1, 1 - 0.27f * std::sqrt(2), 1));
+        const auto scaling = glm::scale(glm::mat4(), glm::vec3(0.2f, 0.2f, 0.6f));
         BBox::draw_box(objectsProgramID, ViewProjectionMatrix, translation * rotation * scaling);
 
         MPM.rasterizeParticlesToGrid();
         MPM.timeIntegration(delta);
+        MPM.gridBasedCollisions();
         MPM.updateDeformationGradient(delta);
         MPM.updateParticleVelocities();
         MPM.updateParticlePositions(delta);

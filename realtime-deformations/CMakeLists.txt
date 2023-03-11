@@ -52,6 +52,7 @@ add_executable (realtime-deformations
 	"material_point_method.cpp"
 	"utils.h"
 	"mathy.hpp"
+	"mathy.cpp"
 	"mesh.hpp"
 	"mesh.cpp"
 	"logger.hpp"
@@ -79,6 +80,13 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+
+find_package(OpenMP REQUIRED)
+set(ALL_LIBS
+	${ALL_LIBS}
+	OpenMP::OpenMP_CXX
+)
+
 target_link_libraries(realtime-deformations
 	${ALL_LIBS}
 )
@@ -89,3 +97,4 @@ set_target_properties(realtime-deformations PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/"
 	RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_CURRENT_SOURCE_DIR}/"
 	RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_CURRENT_SOURCE_DIR}/")
+

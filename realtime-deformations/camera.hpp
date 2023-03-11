@@ -10,7 +10,7 @@ public:
     glm::mat4 mvp;
     glm::mat4 projection;
     float hAngle = 3.1415f;
-    float vAngle = -3.1415f / 4 + 0.4;
+    float vAngle = -3.1415f / 4 + 0.5;
     void updateMatrix();
     void updateDirections();
 private:

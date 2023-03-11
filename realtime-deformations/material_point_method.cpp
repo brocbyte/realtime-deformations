@@ -12,7 +12,7 @@
 #include <constants.hpp>
 
 namespace MaterialPointMethod {
-    ftype WeightCalculator::h = 1.0f;
+    ftype WeightCalculator::h = 0.05f;
     inline ftype WeightCalculator::weightNx(ftype x) {
         const auto modx = abs(x);
         const auto modx2 = modx * modx;
@@ -84,7 +84,7 @@ namespace MaterialPointMethod {
 
     void LagrangeEulerView::initializeParticles(const v3t& particlesOrigin, const v3t& velocity) {
         for (auto& p : particles) {
-            p.pos = clampPosition(particlesOrigin + generateRandomInsideUnitBall(0.2));
+            p.pos = clampPosition(particlesOrigin + generateRandomInsideUnitBall(0.5));
             p.velocity = velocity;
             p.r = 255;
             p.g = 255;
@@ -102,6 +102,7 @@ namespace MaterialPointMethod {
         MAKE_LOOP(i, MAX_I, j, MAX_J, k, MAX_K) {
             const auto idx = glm::ivec3(i, j, k);
             grid[i][j][k].mass = 0.0f;
+            grid[i][j][k].velocity = { 0, 0, 0 };
             for (const auto& p : particles) {
                 grid[i][j][k].mass += p.mass * WeightCalculator::wip(idx, p.pos);
             }
@@ -124,7 +125,7 @@ namespace MaterialPointMethod {
         const auto gMomentum = gridMomentum();
         logger.log(Logger::LogLevel::INFO, "ParticlesMomentum", pMomentum);
         logger.log(Logger::LogLevel::INFO, "GridMomentum", gMomentum);
-        if (glm::length(pMomentum - gMomentum) > 1e-2) {
+        if (glm::length(pMomentum - gMomentum) / glm::length(gMomentum) > 1e-2) {
             logger.log(Logger::LogLevel::WARNING, "GridMomentum != ParticlesMomentum after rasterization");
         }
     }
@@ -207,14 +208,28 @@ namespace MaterialPointMethod {
             initialVelocities[velIdx + 2] = grid[i][j][k].velocity[2];
             velIdx += 3;
         }
-        Optimizer optimizer;
+        Optimizer optimizer{ E };
         optimizer.setLevel(DEFAULT_LOG_LEVEL_OPTIMIZER);
-        const auto velocities = optimizer.optimize(E, initialVelocities);
+        const auto velocities = optimizer.optimize(E, initialVelocities, used_cells);
         velIdx = 0;
         for (const auto& cell : used_cells) {
             const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
             grid[i][j][k].velocity = glm::vec3(velocities[velIdx], velocities[velIdx + 1], velocities[velIdx + 2]);
             velIdx += 3;
+        }
+    }
+
+    void LagrangeEulerView::gridBasedCollisions() {
+        for (const auto& cell : used_cells) {
+            const auto& [i, j, k] = std::array<int, 3>{ cell.x, cell.y, cell.z };
+
+            const auto pos = v3t(cell) * MaterialPointMethod::WeightCalculator::h;
+            auto distance = std::numeric_limits<ftype>::infinity();
+            if (abs(pos.x - 1.0f) < 0.33)
+                distance = std::max({ pos.y - pos.x - 0, pos.y + pos.x - 2 });
+            if (distance < 0) {
+                grid[i][j][k].velocity = v3t(0, 0, 0);
+            }
         }
     }
 
@@ -238,8 +253,9 @@ namespace MaterialPointMethod {
                 return;
             }
             Eigen::VectorXf s = svd.singularValues();
+            logger.log(Logger::LogLevel::INFO, "SVD Singular", glm::vec3(s(0), s(1), s(2)));
             for (int i = 0; i < 3; i++) {
-                s(i) = std::clamp(s(i), (float)(1 - 1.9f * 1e-2), (float)(1 + 7.5f * 1e-3));
+                s(i) = std::clamp(s(i), (float)(1 - 2.5f * 1e-2), (float)(1 + 7.5f * 1e-3));
             }
             Eigen::MatrixXf _S{ {s(0), 0, 0}, {0, s(1), 0}, {0, 0, s(2)} };
             const auto U = eigenToGlm(svd.matrixU());

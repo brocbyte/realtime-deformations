@@ -56,6 +56,8 @@ namespace MaterialPointMethod {
         void rasterizeParticlesToGrid();
         void computeParticleVolumesAndDensities();
         void timeIntegration(ftype timeDelta);
+        void gridBasedCollisions();
+
         void updateDeformationGradient(ftype timeDelta);
 
         void updateParticleVelocities();
@@ -76,9 +78,6 @@ namespace MaterialPointMethod {
         ftype ElasticPotential(const Eigen::VectorXf& velocities, ftype timeDelta);
         ftype ElasticPlasticEnergyDensity(const m3t& FE, const m3t& FP);
 
-        v3t gridMomentum();
-        v3t particleMomentum();
-        ftype gridMass();
         v3t clampPosition(const v3t& vec);
 
         // debugging
@@ -86,6 +85,9 @@ namespace MaterialPointMethod {
         ftype averageParticleDensity();
         ftype averageCellDensity();
 
+        v3t gridMomentum();
+        v3t particleMomentum();
+        ftype gridMass();
     };
 
 }
