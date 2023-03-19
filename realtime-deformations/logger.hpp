@@ -1,7 +1,6 @@
 #pragma once
 #include <iostream>
 #include <glm/glm.hpp>
-#include <glm/gtx/string_cast.hpp>
 #include <constants.hpp>
 
 class Logger {
@@ -19,11 +18,14 @@ public:
     void log(LogLevel level, const std::string& iName, ftype iValue) {
         log(level, iName + " is: " + std::to_string(iValue));
     }
+    void log(LogLevel level, const std::string& iName, int iValue) {
+        log(level, iName + " is: " + std::to_string(iValue));
+    }
     void log(LogLevel level, const std::string& iName, const glm::vec3& iVec) {
-        log(level, iName + " is: " + glm::to_string(iVec));
+        //log(level, iName + " is: " + glm::to_string(iVec));
     }
     void log(LogLevel level, const std::string& iName, const glm::mat3& iMat) {
-        log(level, iName + " is: " + glm::to_string(iMat));
+        //log(level, iName + " is: " + glm::to_string(iMat));
     }
     void setLevel(LogLevel level) {
         _level = level;

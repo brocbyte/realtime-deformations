@@ -1,5 +1,5 @@
-﻿cmake_minimum_required (VERSION 3.0)
-project(realtime-deformations)
+﻿cmake_minimum_required (VERSION 3.8 FATAL_ERROR)
+project(realtime-deformations LANGUAGES CXX CUDA)
 find_package(OpenGL REQUIRED)
 
 if( CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR )
@@ -50,12 +50,14 @@ add_executable (realtime-deformations
 	"fps_counter.hpp"
 	"material_point_method.hpp"
 	"material_point_method.cpp"
+	"cudaCalc.cu"
 	"utils.h"
 	"mathy.hpp"
 	"mathy.cpp"
 	"mesh.hpp"
 	"mesh.cpp"
 	"logger.hpp"
+	"cudaCalc.cuh"
 	common/shader.cpp
 	common/shader.hpp
 	common/objloader.cpp
@@ -68,9 +70,13 @@ add_executable (realtime-deformations
 	common/text2D.hpp
 )
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET realtime-deformations PROPERTY CXX_STANDARD 23)
-endif()
+set_property(TARGET realtime-deformations
+			 PROPERTY CXX_STANDARD 17)
+
+set_property(TARGET realtime-deformations
+             PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+set_property(TARGET realtime-deformations
+			 PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 if (MSVC)
     # warning level 4

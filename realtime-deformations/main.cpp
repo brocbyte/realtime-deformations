@@ -12,7 +12,6 @@ GLFWwindow* window;
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/norm.hpp>
-#include <glm/gtx/string_cast.hpp>
 
 #include "common/shader.hpp"
 #include "common/objloader.hpp"
@@ -26,6 +25,7 @@ GLFWwindow* window;
 #include "fps_counter.hpp"
 #include "material_point_method.hpp"
 #include "mesh.hpp"
+#include <filesystem>
 
 int initializeLibs();
 
@@ -40,7 +40,7 @@ int main(void) {
     const glm::vec3 particlesOrigin(1.0f, 1.5f, 1.0f);
     MaterialPointMethod::LagrangeEulerView MPM{ 40, 40, 40, numParticles };
     MPM.setLevel(MaterialPointMethod::DEFAULT_LOG_LEVEL_MPM);
-    MPM.initializeParticles(particlesOrigin, { 0.0f, -100.0f, 0.0f });
+    MPM.initializeParticles(particlesOrigin, { 10.0f, -100.0f, 0.0f });
     MPM.rasterizeParticlesToGrid();
     MPM.computeParticleVolumesAndDensities();
 
@@ -163,7 +163,7 @@ int main(void) {
 
 void drawParticles(MaterialPointMethod::LagrangeEulerView& MPM, GLfloat* g_particule_position_size_data, GLubyte* g_particule_color_data, const GLuint& particles_position_buffer, const GLuint& particles_color_buffer, const GLuint& programID, const GLuint& Texture, const GLuint& TextureID, const GLuint& CameraRight_worldspace_ID, glm::mat4& ViewMatrix, const GLuint& CameraUp_worldspace_ID, const GLuint& ViewProjMatrixID, glm::mat4& ViewProjectionMatrix, const GLuint& billboard_vertex_buffer)
 {
-    const auto MaxParticles = MPM.getParticles().size();
+    const auto MaxParticles = MPM.getNumParticles();
     // Fill the GPU buffer
     for (int i = 0; i < MaxParticles; i++) {
         const auto p = MPM.getParticles()[i];
@@ -321,5 +321,6 @@ int initializeLibs() {
     glEnable(GL_DEPTH_TEST);
     // Accept fragment if it closer to the camera than the former one
     glDepthFunc(GL_LESS);
+    return 0;
 }
 
