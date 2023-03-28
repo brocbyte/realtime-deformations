@@ -26,18 +26,13 @@ public:
     Optimizer* solver;
 
     ftype value(const Eigen::VectorXf& v) {
-        Eigen::VectorXf grad;
-        return gradient(v, grad);
+        return solver->_f(v);
     }
 
     bool converged(const Eigen::VectorXf& x0, const Eigen::VectorXf& x1, const Eigen::VectorXf& grad) {
         if (grad.norm() < 1e-2) { return true; }
         if ((x0 - x1).norm() < 1e-2) { return true; }
         return false;
-    }
-
-    ftype gradient(const Eigen::VectorXf& v, Eigen::VectorXf& grad) {
-        return solver->_f(v);
     }
 
 };

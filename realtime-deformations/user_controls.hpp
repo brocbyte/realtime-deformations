@@ -14,7 +14,7 @@ public:
     void update(Camera& iCamera);
 private:
     GLFWwindow* _window;
-    const float speed = 3.0f;
+    const float speed = 1.0f;
     const float mouseSpeed = 0.001f;
 
     double lastX = GLFW_WINDOW_WIDTH / 2.0;

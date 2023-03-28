@@ -67,11 +67,37 @@ inline std::pair<m3t, m3t> polarDecomposition(const m3t& _m, bool usingSVD = fal
         return { U * glm::transpose(V), V * S * glm::transpose(V) };
     }
     else {
-        std::array<float, 9> _RE, _SE;
-        polar::polar_decomposition(_RE.data(), _SE.data(), glmToPolar(_m).data());
-        return { polarToGlm(_RE), polarToGlm(_SE) };
+        std::array<float, 9> _R, _S;
+        polar::polar_decomposition(_R.data(), _S.data(), glmToPolar(_m).data());
+        return { polarToGlm(_R), polarToGlm(_S) };
     }
 }
+
+inline std::string glmToString(const glm::mat3& m) {
+    std::string s;
+    std::string prefix = "";
+    for (int i = 0; i < 3; ++i) {
+        s += prefix;
+        std::string colPrefix = "";
+        for (int j = 0; j < 3; ++j) {
+            s += colPrefix + std::to_string(m[i][j]);
+            colPrefix = " ";
+        }
+        prefix = "\n";
+    }
+    return s;
+}
+
+inline std::string glmToString(const glm::vec3& v) {
+    std::string s;
+    std::string prefix = "";
+    for (int i = 0; i < 3; ++i) {
+        s += prefix + std::to_string(v[i]);
+        prefix = " ";
+    }
+    return s;
+}
+
 
 inline void checkPolarDecomposition(const glm::mat3& RE, const glm::mat3& SE, const glm::mat3& FE) {
     const auto check = RE * SE - FE;
@@ -80,10 +106,11 @@ inline void checkPolarDecomposition(const glm::mat3& RE, const glm::mat3& SE, co
     }
 }
 
+inline float randFloat(float low, float high) {
+    return low + (rand() % 2000) / 2000.0 * (high - low);
+}
+
 inline v3t generateRandomInsideUnitBall(ftype R) {
-    auto randFloat = [](auto low, auto high) {
-        return low + (rand() % 2000) / 2000.0 * (high - low);
-    };
     const auto phi = randFloat(0.0f, 2.0 * 3.1415);
     const auto costheta = randFloat(0.0, 2.0) - 1.0;
     const auto u = randFloat(0.0, 1.0);
@@ -96,5 +123,14 @@ inline v3t generateRandomInsideUnitBall(ftype R) {
         r * cos(theta)
     };
 
+}
+
+inline v3t generateRandomVertical(ftype high, ftype width) {
+    const auto unitBall = generateRandomInsideUnitBall(width);
+    return {
+        unitBall.x,
+        randFloat(-high / 2, high / 2),
+        unitBall.z
+    };
 }
 

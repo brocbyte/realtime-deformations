@@ -43,16 +43,16 @@
         min_x, max_x,
         min_y, max_y,
         min_z, max_z;
-    min_x = max_x = mesh.vertices[0].x;
-    min_y = max_y = mesh.vertices[0].y;
-    min_z = max_z = mesh.vertices[0].z;
-    for (int i = 0; i < mesh.vertices.size(); i++) {
-        if (mesh.vertices[i].x < min_x) min_x = mesh.vertices[i].x;
-        if (mesh.vertices[i].x > max_x) max_x = mesh.vertices[i].x;
-        if (mesh.vertices[i].y < min_y) min_y = mesh.vertices[i].y;
-        if (mesh.vertices[i].y > max_y) max_y = mesh.vertices[i].y;
-        if (mesh.vertices[i].z < min_z) min_z = mesh.vertices[i].z;
-        if (mesh.vertices[i].z > max_z) max_z = mesh.vertices[i].z;
+    min_x = max_x = mesh._vertices[0 + 0];
+    min_y = max_y = mesh._vertices[0 + 1];
+    min_z = max_z = mesh._vertices[0 + 2];
+    for (int i = 0; i < mesh._vertices.size(); i+=3) {
+        if (mesh._vertices[i + 0] < min_x) min_x = mesh._vertices[i + 0];
+        if (mesh._vertices[i + 0] > max_x) max_x = mesh._vertices[i + 0];
+        if (mesh._vertices[i + 1] < min_y) min_y = mesh._vertices[i + 1];
+        if (mesh._vertices[i + 1] > max_y) max_y = mesh._vertices[i + 1];
+        if (mesh._vertices[i + 2] < min_z) min_z = mesh._vertices[i + 2];
+        if (mesh._vertices[i + 2] > max_z) max_z = mesh._vertices[i + 2];
     }
 
     glm::vec3 size = glm::vec3(max_x - min_x, max_y - min_y, max_z - min_z);
@@ -89,11 +89,48 @@
     glDeleteBuffers(1, &ibo_elements);
 }
 
-/* static */void BBox::draw_box(GLuint programID, const glm::mat4& VP, const glm::mat4& transformation) {
+void Mesh::draw() {
+    glUseProgram(_programID);
+    GLuint ViewProjMatrixID = glGetUniformLocation(_programID, "VP");
+    glUniformMatrix4fv(ViewProjMatrixID, 1, GL_FALSE, &_VP[0][0]);
 
-    // Cube 1x1x1, centered on origin
-    GLfloat vertices[] = {
-        -1.0f,-1.0f,-1.0f, // triangle 1 : begin
+    ///* Apply object's transformation matrix */
+    GLuint uniform_m = glGetUniformLocation(_programID, "uniform_m");
+    glUniformMatrix4fv(uniform_m, 1, GL_FALSE, &matrixWorld[0][0]);
+
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, _vertexBuffer);
+    glVertexAttribPointer(
+        0,  // attribute
+        3,                  // number of elements per vertex, here (x,y,z)
+        GL_FLOAT,           // the type of each element
+        GL_FALSE,           // take our values as-is
+        0,                  // no extra data between each position
+        0                   // offset of first element
+    );
+
+    // TODO fix mixing attribute divisors in different shaders...
+    glEnableVertexAttribArray(4);
+    glBindBuffer(GL_ARRAY_BUFFER, _colorBuffer);
+    glVertexAttribPointer(
+        4,                                // attribute. No particular reason for 1, but must match the layout in the shader.
+        3,                                // size
+        GL_FLOAT,                         // type
+        GL_FALSE,                         // normalized?
+        0,                                // stride
+        (void*)0                          // array buffer offset
+    );
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _vertexBuffer);
+    glDrawArrays(GL_TRIANGLES, 0, 12 * 3);
+
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+}
+
+
+std::vector<GLfloat> MeshPresets::Box::vertices = {
+    -1.0f,-1.0f,-1.0f, // triangle 1 : begin
     -1.0f,-1.0f, 1.0f,
     -1.0f, 1.0f, 1.0f, // triangle 1 : end
     1.0f, 1.0f,-1.0f, // triangle 2 : begin
@@ -129,9 +166,9 @@
     1.0f, 1.0f, 1.0f,
     -1.0f, 1.0f, 1.0f,
     1.0f,-1.0f, 1.0f
-    };
+};
 
-    static const GLfloat g_color_buffer_data[] = {
+std::vector<GLfloat> MeshPresets::Box::colors = {
     0.583f,  0.771f,  0.014f,
     0.609f,  0.115f,  0.436f,
     0.327f,  0.483f,  0.844f,
@@ -168,54 +205,4 @@
     0.673f,  0.211f,  0.457f,
     0.820f,  0.883f,  0.371f,
     0.982f,  0.099f,  0.879f
-    };
-
-    GLuint vbo_vertices;
-    glGenBuffers(1, &vbo_vertices);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    GLuint colorbuffer;
-    glGenBuffers(1, &colorbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(g_color_buffer_data), g_color_buffer_data, GL_STATIC_DRAW);
-
-    glUseProgram(programID);
-    GLuint ViewProjMatrixID = glGetUniformLocation(programID, "VP");
-    glUniformMatrix4fv(ViewProjMatrixID, 1, GL_FALSE, &VP[0][0]);
-
-    glm::mat4 m = transformation;
-
-    ///* Apply object's transformation matrix */
-    GLuint uniform_m = glGetUniformLocation(programID, "uniform_m");
-    glUniformMatrix4fv(uniform_m, 1, GL_FALSE, &m[0][0]);
-
-    glEnableVertexAttribArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
-    glVertexAttribPointer(
-        0,  // attribute
-        3,                  // number of elements per vertex, here (x,y,z)
-        GL_FLOAT,           // the type of each element
-        GL_FALSE,           // take our values as-is
-        0,                  // no extra data between each position
-        0                   // offset of first element
-    );
-
-    // TODO fix mixing attribute divisors in different shaders...
-    glEnableVertexAttribArray(4);
-    glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glVertexAttribPointer(
-        4,                                // attribute. No particular reason for 1, but must match the layout in the shader.
-        3,                                // size
-        GL_FLOAT,                         // type
-        GL_FALSE,                         // normalized?
-        0,                                // stride
-        (void*)0                          // array buffer offset
-    );
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo_vertices);
-    glDrawArrays(GL_TRIANGLES, 0, 12 * 3);
-
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-}
+};

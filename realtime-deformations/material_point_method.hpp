@@ -6,6 +6,10 @@
 #include <constants.hpp>
 #include <logger.hpp>
 #include "cuda_runtime_api.h"
+#include <mesh.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 namespace MaterialPointMethod {
     const auto DEFAULT_LOG_LEVEL_OPTIMIZER = Logger::LogLevel::WARNING;
@@ -61,6 +65,28 @@ namespace MaterialPointMethod {
         }
     };
 
+    class MeshCollider {
+    public:
+        Mesh mesh;
+        MeshCollider(GLuint programID, glm::mat4& VP, const std::vector<GLfloat>& vertices, const std::vector<GLfloat>& colors, const glm::vec3& vel)
+            : mesh{ programID, VP, vertices, colors }, velocity{ vel } {
+            sdf = [this](const v3t& pos) -> ftype {
+                glm::vec4 b4 = glm::scale(glm::mat4(), mesh.scale) * glm::vec4{ 1, 1, 1, 1 };
+                glm::vec3 b = { b4.x, b4.y, b4.z };
+                glm::vec4 p4 = (glm::inverse(glm::translate(glm::mat4(), mesh.translation) * glm::toMat4(mesh.rotation)) * glm::vec4{ pos, 1 });
+                glm::vec3 p = { p4.x, p4.y, p4.z };
+                glm::vec3 q = abs(p) - b;
+                return glm::length(std::max({ q.x, q.y, q.z, 0.0f })) + std::min({ std::max(q.x, std::max(q.y, q.z)), 0.0f });
+            };
+        }
+        std::function<ftype(const v3t&)> sdf;
+        glm::vec3 velocity;
+        void move(ftype timeDelta) {
+            mesh.applyMatrix4(glm::translate(glm::mat4(1.0), timeDelta * velocity));
+        }
+    };
+
+
     struct Particle {
         ftype mass;
         v3t velocity;
@@ -70,6 +96,7 @@ namespace MaterialPointMethod {
         m3t FPlastic{ 1.0 };
         m3t B{ 0.0 };
         m3t D{ 0.0 };
+        m3t F{ 1.0f };
 
         unsigned char r, g, b, a; // Color
         float size;
@@ -77,6 +104,7 @@ namespace MaterialPointMethod {
 
     struct Cell {
         ftype mass;
+        v3t force{ 0.0f, 0.0f, 0.0f };
         v3t velocity{ 0.0 };
         int nParticles{ 0 };
     };
@@ -150,8 +178,10 @@ namespace MaterialPointMethod {
         void precalculateWeights();
         void rasterizeParticlesToGrid();
         void computeParticleVolumesAndDensities();
+        void computeExplicitGridForces();
+        void gridVelocitiesUpdate(ftype timeDelta);
         void timeIntegration(ftype timeDelta);
-        void gridBasedCollisions();
+        void gridBasedCollisions(ftype timeDelta, const std::vector<MeshCollider>& objects);
 
         void updateDeformationGradient(ftype timeDelta);
 
@@ -174,6 +204,8 @@ namespace MaterialPointMethod {
         const ftype xi = 10.0f;
         const ftype lambda0 = 1.0f;
 
+        v3t bodyCollision(const v3t& pos, const v3t& velocity, ftype currentTime, const std::vector<MeshCollider>& objects);
+
         ftype Energy(const Eigen::VectorXf& velocities, ftype timeDelta);
         ftype ElasticPotential(const Eigen::VectorXf& velocities, ftype timeDelta);
         ftype ElasticPlasticEnergyDensity(const m3t& FE, const m3t& FP);
@@ -184,6 +216,7 @@ namespace MaterialPointMethod {
         ftype averagePPC();
         ftype averageParticleDensity();
         ftype averageCellDensity();
+        m3t averageDeformationGradient();
 
         v3t gridMomentum();
         v3t particleMomentum();

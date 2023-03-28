@@ -2,6 +2,7 @@
 #include <iostream>
 #include <glm/glm.hpp>
 #include <constants.hpp>
+#include "utils.h"
 
 class Logger {
 public:
@@ -22,10 +23,10 @@ public:
         log(level, iName + " is: " + std::to_string(iValue));
     }
     void log(LogLevel level, const std::string& iName, const glm::vec3& iVec) {
-        //log(level, iName + " is: " + glm::to_string(iVec));
+        log(level, iName + " is: " + glmToString(iVec));
     }
     void log(LogLevel level, const std::string& iName, const glm::mat3& iMat) {
-        //log(level, iName + " is: " + glm::to_string(iMat));
+        log(level, iName + " is: " + glmToString(iMat));
     }
     void setLevel(LogLevel level) {
         _level = level;
