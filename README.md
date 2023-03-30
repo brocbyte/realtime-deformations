@@ -4,6 +4,8 @@ Uses OpenGL + CUDA + Eigen.
 
 ![demo](./demo.gif)
 
+![demo2](./demo2.gif)
+
 Papers used:
 * "A material point method for snow simulation" [https://www.math.ucla.edu/~jteran/papers/SSCTS13.pdf]
 * "GPU Optimization of Material Point Methods" [https://dl.acm.org/doi/pdf/10.1145/3272127.3275044]

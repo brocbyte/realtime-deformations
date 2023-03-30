@@ -96,7 +96,6 @@ namespace MaterialPointMethod {
         m3t FPlastic{ 1.0 };
         m3t B{ 0.0 };
         m3t D{ 0.0 };
-        m3t F{ 1.0f };
 
         unsigned char r, g, b, a; // Color
         float size;

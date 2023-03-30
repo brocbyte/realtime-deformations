@@ -45,11 +45,11 @@ int main(void) {
         return -1;
     }
 
-    const auto numParticles = 100;
-    const glm::vec3 particlesOrigin(1.0f, 1.4f, 1.0f);
-    MaterialPointMethod::LagrangeEulerView MPM{ 40, 40, 40, numParticles };
+    const auto numParticles = 512;
+    const glm::vec3 particlesOrigin(0.5f, 0.6f, 0.5f);
+    MaterialPointMethod::LagrangeEulerView MPM{ 20, 20, 20, numParticles };
     MPM.setLevel(MaterialPointMethod::DEFAULT_LOG_LEVEL_MPM);
-    MPM.initializeParticles(particlesOrigin, { 0.0f, 0.0f, 0.0f });
+    MPM.initializeParticles(particlesOrigin, { 0.0f, -30.0f, 0.0f });
     MPM.rasterizeParticlesToGrid();
     MPM.computeParticleVolumesAndDensities();
 
@@ -116,23 +116,42 @@ int main(void) {
         glm::scale(glm::mat4(), glm::vec3(0.5, 0.5, 0.5)) *
         glm::translate(glm::mat4(), glm::vec3(1, 1, 1)));
 
+    std::vector<MaterialPointMethod::MeshCollider> solidObjects;
+
     MaterialPointMethod::MeshCollider box1{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
-        {0, -100, 0}
+        {0, 0, 0}
     };
 
-    const auto rotation1 = glm::rotate(glm::mat4(), glm::radians(45.0f), { 0, 0, 1 });
-    const auto translation1 = glm::translate(glm::mat4(), { 1, 2, 1 });
-    const auto scaling1 = glm::scale(glm::mat4(), { 0.2f, 0.2f, 0.6f });
+    const auto rotation1 = glm::rotate(glm::mat4(), glm::radians(0.0f), { 0, 0, 1 });
+    const auto translation1 = glm::translate(glm::mat4(), { 0.5, 0, 0.5 });
+    const auto scaling1 = glm::scale(glm::mat4(), { 0.2f, 0.2f, 0.2f });
     box1.mesh.applyMatrix4(translation1 * rotation1 * scaling1);
 
     MaterialPointMethod::MeshCollider box2{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
         {0, 0, 0}
     };
-
-    const auto rotation2 = glm::rotate(glm::mat4(), glm::radians(0.0f), { 0, 0, 1 });
-    const auto translation2 = glm::translate(glm::mat4(), { 1, 0.3, 1 });
-    const auto scaling2 = glm::scale(glm::mat4(), { 0.3f, 0.3f, 0.3f });
+    const auto rotation2 = glm::rotate(glm::mat4(), glm::radians(45.0f), { 0, 0, 1 });
+    const auto translation2 = glm::translate(glm::mat4(), { 0.5, 0.3, 0.5 });
+    const auto scaling2 = glm::scale(glm::mat4(), glm::vec3(0.1f, 0.1f, 0.3f) * 0.5f);
     box2.mesh.applyMatrix4(translation2 * rotation2 * scaling2);
+
+    MaterialPointMethod::MeshCollider box3{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
+        {0, 0, 0}
+    };
+    const auto translation3 = glm::translate(glm::mat4(), { 0.3, 0.3, 0.5 });
+    box3.mesh.applyMatrix4(translation3 * rotation2 * scaling2);
+
+    MaterialPointMethod::MeshCollider box4{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
+        {0, 0, 0}
+    };
+    const auto translation4 = glm::translate(glm::mat4(), { 0.7, 0.3, 0.5 });
+    box4.mesh.applyMatrix4(translation4 * rotation2 * scaling2);
+
+    solidObjects.push_back(box1);
+    solidObjects.push_back(box2);
+    solidObjects.push_back(box3);
+    solidObjects.push_back(box4);
+
     glfwSetKeyCallback(window, key_callback);
 
     do
@@ -142,7 +161,7 @@ int main(void) {
 
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
-        delta = 1e-5;
+        delta = 1e-4;
         lastTime = currentTime;
 
         userControls.update(camera);
@@ -159,17 +178,16 @@ int main(void) {
         ViewProjectionMatrix = ProjectionMatrix * ViewMatrix;
 
         BBox::draw_bbox(objectsProgramID, ViewProjectionMatrix, bboxMesh);
-        box1.move(delta);
-        box1.mesh.draw();
-
-        box2.move(delta);
-        box2.mesh.draw();
+        for (auto& box : solidObjects) {
+            box.move(delta);
+            box.mesh.draw();
+        }
 
         MPM.rasterizeParticlesToGrid();
         MPM.computeExplicitGridForces();
         MPM.gridVelocitiesUpdate(delta);
 
-        MPM.gridBasedCollisions(delta, { box1, box2 });
+        MPM.gridBasedCollisions(delta, solidObjects);
         MPM.updateDeformationGradient(delta);
         MPM.updateParticleVelocities();
         MPM.updateParticlePositions(delta);

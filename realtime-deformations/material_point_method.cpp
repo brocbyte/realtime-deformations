@@ -15,20 +15,44 @@
 namespace MaterialPointMethod {
     ftype WeightCalculator::h = 0.05f;
     void LagrangeEulerView::initializeParticles(const v3t& particlesOrigin, const v3t& velocity) {
-        for (int pi = 0; pi < nParticles; ++pi) {
-            auto& p = particles[pi];
-            p.pos = clampPosition(particlesOrigin + generateRandomInsideUnitBall(0.2));
-            p.velocity = velocity;
-            p.r = rand() % 256;
-            p.g = rand() % 256;
-            p.b = rand() % 256;
-            p.r = 255;
-            p.g = 255;
-            p.b = 255;
-            p.a = 255;
-            p.size = 0.02;
-            p.mass = 0.00001;
-            p.F = glm::mat3(1.0f);
+        ftype width = 0.1;
+        glm::ivec3 particlesOriginInCellCoordinates{ particlesOrigin / WeightCalculator::h };
+        int cx = particlesOriginInCellCoordinates.x;
+        int cy = particlesOriginInCellCoordinates.y;
+        int cz = particlesOriginInCellCoordinates.z;
+
+        int widthInCells = width / WeightCalculator::h;
+
+        int particlesLeft = nParticles;
+        int needMore = 0;
+        glm::vec3 ds[] = { {1, 1, 1}, {1, 1, 3}, {1, 3, 1}, {1, 3, 3},
+                           {3, 1, 1}, {3, 1, 3}, {3, 3, 1}, {3, 3, 3} };
+        for (int i = cx - widthInCells; i < cx + widthInCells; ++i) {
+            for (int j = cy - widthInCells; j < cy + widthInCells; ++j) {
+                for (int k = cz - widthInCells; k < cz + widthInCells; ++k) {
+                    for (int dsi = 0; dsi < 8; ++dsi) {
+                        if (!particlesLeft) {
+                            ++needMore;
+                            continue;
+                        }
+                        auto& p = particles[--particlesLeft];
+                        p.pos = (glm::vec3(i, j, k) + ds[dsi] * (1 / 4.0f) + generateRandomInsideUnitBall(0.25)) * WeightCalculator::h;
+                        p.velocity = velocity;
+                        p.r = rand() % 256;
+                        p.g = rand() % 256;
+                        p.b = rand() % 256;
+                        p.r = 255;
+                        p.g = 255;
+                        p.b = 255;
+                        p.a = 255;
+                        p.size = 0.02;
+                        p.mass = 0.0006;
+                    }
+                }
+            }
+        }
+        if (needMore) {
+            std::cout << needMore << " more!!!\n";
         }
         logger.log(Logger::LogLevel::INFO, "Particles momentum", particleMomentum());
         logger.log(Logger::LogLevel::INFO, "Average PPC", averagePPC());
@@ -189,14 +213,17 @@ namespace MaterialPointMethod {
             for (const auto& p : particles) {
                 const auto poisson = 0.2f;
                 const auto E = 1.4e5f;
-                const auto mu = E / (2.0f * (1 + poisson));
-                const auto lamda = (E * poisson) / ((1 + poisson) * (1 - 2 * poisson));
-                const auto [R, S] = polarDecomposition(p.F);
+                const auto mu0 = E / (2.0f * (1 + poisson));
+                const auto mu = mu0 * glm::exp(xi * (1 - glm::determinant(p.FPlastic)));
+                const auto lambda0 = (E * poisson) / ((1 + poisson) * (1 - 2 * poisson));
+                const auto lambda = lambda0 * glm::exp(xi * (1 - glm::determinant(p.FPlastic)));
+                const auto F = p.FElastic;
+                const auto [R, S] = polarDecomposition(F);
                 const auto detR = glm::determinant(R);
-                const auto J = glm::determinant(p.F);
-                const auto FT = glm::transpose(glm::inverse(p.F));
-                const m3t derivative = 2 * mu * (p.F - R) + lamda * (J - 1) * J * FT;
-                grid(i, j, k).force -= p.volume * derivative * glm::transpose(p.F) * WeightCalculator::wipGrad({ i, j, k }, p.pos);
+                const auto J = glm::determinant(F);
+                const auto FT = glm::transpose(glm::inverse(F));
+                const m3t derivative = 2 * mu * (F - R) + lambda * (J - 1) * J * FT;
+                grid(i, j, k).force -= p.volume * derivative * glm::transpose(F) * WeightCalculator::wipGrad({ i, j, k }, p.pos);
             }
         }
     }
@@ -261,9 +288,29 @@ namespace MaterialPointMethod {
                 const auto grad = WeightCalculator::wipGrad(cell, p.pos);
                 velocityGradient += glm::outerProduct(grid(i, j, k).velocity, grad);
             }
-            p.F = (glm::mat3(1.0f) + timeDelta * velocityGradient) * p.F;
+            const auto FPn1 = (m3t(1.0) + velocityGradient * timeDelta) * p.FElastic * p.FPlastic;
+            const auto FEpKryshka = FPn1 * glm::inverse(p.FPlastic);
+
+            const auto m = glmToEigen(FEpKryshka);
+            Eigen::JacobiSVD<Eigen::MatrixXf, Eigen::ComputeFullU | Eigen::ComputeFullV> svd(m);
+            if (svd.info() != Eigen::ComputationInfo::Success) {
+                logger.log(Logger::LogLevel::ERROR, "SVD Error", svd.info());
+                logger.log(Logger::LogLevel::ERROR, "velocityGradient", velocityGradient);
+                return;
+            }
+            Eigen::VectorXf s = svd.singularValues();
+            logger.log(Logger::LogLevel::INFO, "SVD Singular", glm::vec3(s(0), s(1), s(2)));
+            for (int i = 0; i < 3; i++) {
+                s(i) = std::clamp(s(i), (float)(1 - 2.5f * 1e-2), (float)(1 + 7.5f * 1e-3));
+            }
+            Eigen::MatrixXf _S{ {s(0), 0, 0}, {0, s(1), 0}, {0, 0, s(2)} };
+            const auto U = eigenToGlm(svd.matrixU());
+            const auto V = eigenToGlm(svd.matrixV());
+            const auto S = eigenToGlm(_S);
+            p.FElastic = U * S * glm::transpose(V);
+            p.FPlastic = glm::inverse(p.FElastic) * FPn1;
         }
-        logger.log(Logger::LogLevel::INFO, "Deformation gradient", averageDeformationGradient());
+        logger.log(Logger::LogLevel::INFO, "Average deformation gradient", averageDeformationGradient());
     }
 
     void LagrangeEulerView::updateParticleVelocities() {
@@ -376,7 +423,7 @@ namespace MaterialPointMethod {
     m3t LagrangeEulerView::averageDeformationGradient() {
         m3t avg(0.0f);
         for (const auto& p : particles) {
-            avg += p.F;
+            avg += p.FElastic * p.FPlastic;
         }
         return avg / (ftype)nParticles;
     }
