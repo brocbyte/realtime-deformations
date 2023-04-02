@@ -103,7 +103,6 @@ namespace MaterialPointMethod {
         m3t B{ 0.0 };
         m3t D{ 0.0 };
 
-        m3t particleDeformationTmpValue;
         std::vector<glm::ivec3> neighs;
 
         unsigned char r, g, b, a; // Color
@@ -175,6 +174,7 @@ namespace MaterialPointMethod {
     struct LagrangeEulerView : Loggable {
     public:
         bool useCuda = false;
+        const glm::mat3 DpInverse = glm::inverse(glm::mat3(1.0) * (1.0f / 3.0f) * WeightCalculator::h * WeightCalculator::h);
         LagrangeEulerView(int max_i, int max_j, int max_k, int particlesNum);
         ~LagrangeEulerView();
         void initializeParticles(const v3t& particlesOrigin, const v3t& velocity);

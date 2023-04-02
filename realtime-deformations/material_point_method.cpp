@@ -109,7 +109,6 @@ namespace MaterialPointMethod {
             }
         }
 
-        const auto DpInverse = glm::inverse(glm::mat3(1.0) * (1.0f / 3.0f) * WeightCalculator::h * WeightCalculator::h);
         for (const auto& p : particles) {
             for (const auto& neigh : p.neighs) {
                 const auto Xi = v3t(neigh) * WeightCalculator::h;
@@ -174,18 +173,18 @@ namespace MaterialPointMethod {
 
     ftype LagrangeEulerView::ElasticPotential(const Eigen::VectorXf& velocities, ftype timeDelta) {
         auto acc = 0.0f;
-        for (size_t p = 0; p < nParticles; ++p) {
-            const auto& FP = particles[p].FPlastic;
+        for (const auto& p : particles) {
+            const auto& FP = p.FPlastic;
             auto FE = m3t(1.0);
             auto velIdx = 0;
             for (const auto& idx : used_cells) {
                 const auto& [i, j, k] = std::array<int, 3>{ idx.x, idx.y, idx.z };
                 const auto velocity = v3t(velocities[velIdx], velocities[velIdx + 1], velocities[velIdx + 2]);
-                FE += glm::outerProduct(velocity * timeDelta, WeightCalculator::wipGrad(idx, particles[p].pos));
+                FE += glm::outerProduct(velocity * timeDelta, WeightCalculator::wipGrad(idx, p.pos));
                 velIdx += 3;
             }
-            FE = FE * particles[p].FElastic;
-            acc += particles[p].volume * ElasticPlasticEnergyDensity(FE, FP);
+            FE = FE * p.FElastic;
+            acc += p.volume * ElasticPlasticEnergyDensity(FE, FP);
         }
         return acc;
     }
@@ -234,7 +233,7 @@ namespace MaterialPointMethod {
     }
 
     void LagrangeEulerView::computeExplicitGridForces() {
-        for (auto& p : particles) {
+        for (const auto& p : particles) {
             const auto poisson = 0.2f;
             const auto E = 1.4e5f;
             const auto mu0 = E / (2.0f * (1 + poisson));
@@ -247,11 +246,9 @@ namespace MaterialPointMethod {
             const auto J = glm::determinant(F);
             const auto FT = glm::transpose(glm::inverse(F));
             const m3t derivative = 2 * mu * (F - R) + lambda * (J - 1) * J * FT;
-            p.particleDeformationTmpValue = p.volume * derivative * glm::transpose(F);
-        }
-        for (const auto& p : particles) {
             for (const auto& neigh : p.neighs) {
-                grid(neigh.x, neigh.y, neigh.z).force -= p.particleDeformationTmpValue * WeightCalculator::wipGrad(neigh, p.pos);
+                const auto Xi = v3t(neigh) * WeightCalculator::h;
+                grid(neigh.x, neigh.y, neigh.z).force -= p.volume * DpInverse * derivative * glm::transpose(F) * WeightCalculator::wipHost(neigh, p.pos) * (Xi - p.pos);
             }
         }
     }
@@ -308,19 +305,13 @@ namespace MaterialPointMethod {
 
     void LagrangeEulerView::updateDeformationGradient(ftype timeDelta) {
         for (auto& p : particles) {
-            m3t velocityGradient{ 0.0f };
-            for (const auto& neigh : p.neighs) {
-                const auto grad = WeightCalculator::wipGrad(neigh, p.pos);
-                velocityGradient += glm::outerProduct(grid(neigh.x, neigh.y, neigh.z).velocity, grad);
-            }
-            const auto FPn1 = (m3t(1.0) + velocityGradient * timeDelta) * p.FElastic * p.FPlastic;
+            const auto FPn1 = (m3t(1.0) + p.B * DpInverse * timeDelta) * p.FElastic * p.FPlastic;
             const auto FEpKryshka = FPn1 * glm::inverse(p.FPlastic);
 
             const auto m = glmToEigen(FEpKryshka);
             Eigen::JacobiSVD<Eigen::MatrixXf, Eigen::ComputeFullU | Eigen::ComputeFullV> svd(m);
             if (svd.info() != Eigen::ComputationInfo::Success) {
                 logger.log(Logger::LogLevel::ERROR, "SVD Error", svd.info());
-                logger.log(Logger::LogLevel::ERROR, "velocityGradient", velocityGradient);
                 return;
             }
             Eigen::VectorXf s = svd.singularValues();

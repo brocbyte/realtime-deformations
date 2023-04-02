@@ -130,24 +130,25 @@ int main(void) {
     MaterialPointMethod::MeshCollider box2{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
         {0, 0, 0}
     };
-    const auto rotation2 = glm::rotate(glm::mat4(), glm::radians(45.0f), { 0, 0, 1 });
-    const auto translation2 = glm::translate(glm::mat4(), { 0.5, 0.3, 0.5 });
-    const auto scaling2 = glm::scale(glm::mat4(), glm::vec3(0.1f, 0.1f, 0.6f) * 0.5f);
+    const auto rotation2 = glm::rotate(glm::mat4(), glm::radians(0.0f), { 0, 0, 1 });
+    const auto translation2 = glm::translate(glm::mat4(), { 0.5, 0.2, 0.5 });
+    const auto scaling2 = glm::scale(glm::mat4(), glm::vec3(0.1f, 0.35f, 0.1f) * 0.5f);
     box2.mesh.applyMatrix4(translation2 * rotation2 * scaling2);
 
     MaterialPointMethod::MeshCollider box3{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
         {0, 0, 0}
     };
+    const auto rotation3 = glm::rotate(glm::mat4(), glm::radians(45.0f), { 0, 0, 1 });
     const auto translation3 = glm::translate(glm::mat4(), { 0.0, 0.3, 0.5 });
     const auto scaling3 = glm::scale(glm::mat4(), glm::vec3(0.2f, 0.2f, 0.3f));
-    box3.mesh.applyMatrix4(translation3 * rotation2 * scaling3);
+    box3.mesh.applyMatrix4(translation3 * rotation3 * scaling3);
 
     MaterialPointMethod::MeshCollider box4{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
         {0, 0, 0}
     };
     const auto translation4 = glm::translate(glm::mat4(), { 1.0, 0.3, 0.5 });
     const auto scaling4 = glm::scale(glm::mat4(), glm::vec3(0.2f, 0.2f, 0.3f));
-    box4.mesh.applyMatrix4(translation4 * rotation2 * scaling3);
+    box4.mesh.applyMatrix4(translation4 * rotation3 * scaling3);
 
     solidObjects.push_back(box1);
     //solidObjects.push_back(box2);

@@ -27,3 +27,4 @@ Continuum Materials" [https://cg.informatik.uni-freiburg.de/intern/seminar/anima
 * "Optimization Integrator for Large Time Steps" [https://www.math.ucla.edu/~jteran/papers/GSSJT15.pdf]
 * "Modelling cracks in solid materials using the Material Point Method" [http://www.diva-portal.org/smash/get/diva2:1091115/FULLTEXT01.pdf]
 * "Drucker-Prager Elastoplasticity for Sand Animation" [https://dl.acm.org/doi/pdf/10.1145/2897824.2925906]
+* "A Moving Least Squares Material Point Method with Displacement Discontinuity and Two-Way Rigid Body Coupling" [https://yzhu.io/publication/mpmmls2018siggraph/paper.pdf]
