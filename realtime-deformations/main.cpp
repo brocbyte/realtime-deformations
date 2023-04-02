@@ -45,11 +45,11 @@ int main(void) {
         return -1;
     }
 
-    const auto numParticles = 512;
+    const auto numParticles = 270 + 1877;
     const glm::vec3 particlesOrigin(0.5f, 0.6f, 0.5f);
     MaterialPointMethod::LagrangeEulerView MPM{ 20, 20, 20, numParticles };
     MPM.setLevel(MaterialPointMethod::DEFAULT_LOG_LEVEL_MPM);
-    MPM.initializeParticles(particlesOrigin, { 0.0f, -30.0f, 0.0f });
+    MPM.initializeParticles(particlesOrigin, { 0.0f, -200.0f, 0.0f });
     MPM.rasterizeParticlesToGrid();
     MPM.computeParticleVolumesAndDensities();
 
@@ -103,7 +103,7 @@ int main(void) {
 
     FPSCounter fpsCounter;
     Camera camera;
-    camera.position = particlesOrigin + glm::vec3{ 0, 0.3f, 4 };
+    camera.position = particlesOrigin + glm::vec3{ 0, 0, 2 };
     UserControls userControls{ window };
 
     double lastTime = glfwGetTime();
@@ -123,8 +123,8 @@ int main(void) {
     };
 
     const auto rotation1 = glm::rotate(glm::mat4(), glm::radians(0.0f), { 0, 0, 1 });
-    const auto translation1 = glm::translate(glm::mat4(), { 0.5, 0, 0.5 });
-    const auto scaling1 = glm::scale(glm::mat4(), { 0.2f, 0.2f, 0.2f });
+    const auto translation1 = glm::translate(glm::mat4(), { 0.5, -0.2, 0.5 });
+    const auto scaling1 = glm::scale(glm::mat4(), { 0.4f, 0.4f, 0.4f });
     box1.mesh.applyMatrix4(translation1 * rotation1 * scaling1);
 
     MaterialPointMethod::MeshCollider box2{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
@@ -132,27 +132,32 @@ int main(void) {
     };
     const auto rotation2 = glm::rotate(glm::mat4(), glm::radians(45.0f), { 0, 0, 1 });
     const auto translation2 = glm::translate(glm::mat4(), { 0.5, 0.3, 0.5 });
-    const auto scaling2 = glm::scale(glm::mat4(), glm::vec3(0.1f, 0.1f, 0.3f) * 0.5f);
+    const auto scaling2 = glm::scale(glm::mat4(), glm::vec3(0.1f, 0.1f, 0.6f) * 0.5f);
     box2.mesh.applyMatrix4(translation2 * rotation2 * scaling2);
 
     MaterialPointMethod::MeshCollider box3{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
         {0, 0, 0}
     };
-    const auto translation3 = glm::translate(glm::mat4(), { 0.3, 0.3, 0.5 });
-    box3.mesh.applyMatrix4(translation3 * rotation2 * scaling2);
+    const auto translation3 = glm::translate(glm::mat4(), { 0.0, 0.3, 0.5 });
+    const auto scaling3 = glm::scale(glm::mat4(), glm::vec3(0.2f, 0.2f, 0.3f));
+    box3.mesh.applyMatrix4(translation3 * rotation2 * scaling3);
 
     MaterialPointMethod::MeshCollider box4{ objectsProgramID, ViewProjectionMatrix, MeshPresets::Box::vertices, MeshPresets::Box::colors,
         {0, 0, 0}
     };
-    const auto translation4 = glm::translate(glm::mat4(), { 0.7, 0.3, 0.5 });
-    box4.mesh.applyMatrix4(translation4 * rotation2 * scaling2);
+    const auto translation4 = glm::translate(glm::mat4(), { 1.0, 0.3, 0.5 });
+    const auto scaling4 = glm::scale(glm::mat4(), glm::vec3(0.2f, 0.2f, 0.3f));
+    box4.mesh.applyMatrix4(translation4 * rotation2 * scaling3);
 
     solidObjects.push_back(box1);
-    solidObjects.push_back(box2);
+    //solidObjects.push_back(box2);
     solidObjects.push_back(box3);
     solidObjects.push_back(box4);
 
     glfwSetKeyCallback(window, key_callback);
+
+    TimeStamps timeStamps;
+    TimeDurations timeDurations;
 
     do
     {
@@ -161,7 +166,7 @@ int main(void) {
 
         double currentTime = glfwGetTime();
         double delta = currentTime - lastTime;
-        delta = 1e-4;
+        delta = 1e-5;
         lastTime = currentTime;
 
         userControls.update(camera);
@@ -183,14 +188,40 @@ int main(void) {
             box.mesh.draw();
         }
 
+        timeStart(timeStamps, "rasterization");
         MPM.rasterizeParticlesToGrid();
-        MPM.computeExplicitGridForces();
-        MPM.gridVelocitiesUpdate(delta);
+        timeEnd(timeStamps, timeDurations, "rasterization");
 
+        timeStart(timeStamps, "grid forces");
+        MPM.computeExplicitGridForces();
+        timeEnd(timeStamps, timeDurations, "grid forces");
+
+        timeStart(timeStamps, "grid velocities");
+        MPM.gridVelocitiesUpdate(delta);
+        timeEnd(timeStamps, timeDurations, "grid velocities");
+
+        timeStart(timeStamps, "collisions");
         MPM.gridBasedCollisions(delta, solidObjects);
+        timeEnd(timeStamps, timeDurations, "collisions");
+
+        timeStart(timeStamps, "deformation gradient");
         MPM.updateDeformationGradient(delta);
+        timeEnd(timeStamps, timeDurations, "deformation gradient");
+
+        timeStart(timeStamps, "particle vels");
         MPM.updateParticleVelocities();
+        timeEnd(timeStamps, timeDurations, "particle vels");
+
+        timeStart(timeStamps, "positions");
         MPM.updateParticlePositions(delta);
+        timeEnd(timeStamps, timeDurations, "positions");
+        long long sum = 0;
+        for (const auto& [name, duration] : timeDurations) {
+            sum += duration;
+        }
+        for (const auto& [name, duration] : timeDurations) {
+            std::cout << name << ": " << duration / (float)sum << "\n";
+        }
 
         drawParticles(MPM, g_particule_position_size_data, g_particule_color_data, particles_position_buffer, particles_color_buffer, particlesProgramID, Texture, TextureID, CameraRight_worldspace_ID, ViewMatrix, CameraUp_worldspace_ID, ViewProjMatrixID, ViewProjectionMatrix, billboard_vertex_buffer);
 

@@ -1,6 +1,6 @@
 #include "mathy.hpp"
 
-Eigen::VectorXf Optimizer::optimize(const std::function<float(const Eigen::VectorXf&)>& f, const Eigen::VectorXf& initialGuess, const std::vector<glm::ivec3>& used_cells) {
+Eigen::VectorXf Optimizer::optimize(const Eigen::VectorXf& initialGuess) {
     Eigen::VectorXf guess = initialGuess;
     Objective obj(this);
     optimizer.show_denom_warning = true;

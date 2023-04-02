@@ -15,7 +15,7 @@ public:
         optimizer.m_settings.ls_method = mcl::optlib::LSMethod::Backtracking;
     }
 
-    Eigen::VectorXf optimize(const std::function<float(const Eigen::VectorXf&)>& f, const Eigen::VectorXf& initialGuess, const std::vector<glm::ivec3>& used_cells);
+    Eigen::VectorXf optimize(const Eigen::VectorXf& initialGuess);
 };
 
 

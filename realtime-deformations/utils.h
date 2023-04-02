@@ -4,6 +4,7 @@
 #include <iostream>
 #include "polar_decomposition_3x3.h"
 #include <constants.hpp>
+#include <chrono>
 
 #define MAKE_LOOP(idx1, mIdx1, idx2, mIdx2, idx3, mIdx3) \
 for (int idx1 = 0; idx1 < mIdx1; ++idx1)\
@@ -132,5 +133,23 @@ inline v3t generateRandomVertical(ftype high, ftype width) {
         randFloat(-high / 2, high / 2),
         unitBall.z
     };
+}
+
+typedef std::unordered_map<std::string, long long> TimeDurations;
+typedef std::unordered_map<std::string, std::chrono::steady_clock::time_point> TimeStamps;
+inline void timeStart(TimeStamps& timeStamps, const std::string& key) {
+    assert(timeStamps.find(key) == timeStamps.end());
+    timeStamps[key] = std::chrono::high_resolution_clock::now();
+}
+inline void timeEnd(TimeStamps& timeStamps, TimeDurations& timeDurations, const std::string& key) {
+    assert(timeStamps.find(key) != timeStamps.end());
+    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeStamps[key]).count();
+    timeStamps.erase(key);
+    std::cout << key << " took " << duration << " ms\n";
+    if (timeDurations.find(key) == timeDurations.end()) {
+        timeDurations[key] = 0;
+    }
+    timeDurations[key] += duration;
+    std::cout << key << " cumulatively took " << timeDurations[key] << " ms\n";
 }
 

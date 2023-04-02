@@ -50,6 +50,12 @@ namespace MaterialPointMethod {
             }
             return 0.0;
         }
+        inline ftype wipHost(glm::ivec3 idx, v3t pos) {
+            const auto xcomp = pos.x / h - idx.x;
+            const auto ycomp = pos.y / h - idx.y;
+            const auto zcomp = pos.z / h - idx.z;
+            return weightNx(xcomp) * weightNx(ycomp) * weightNx(zcomp);
+        }
         __host__ __device__ inline v3t wipGrad(glm::ivec3 idx, v3t pos) {
             const auto xcomp = (pos.x - idx.x * h) / h;
             const auto ycomp = (pos.y - idx.y * h) / h;
@@ -96,6 +102,9 @@ namespace MaterialPointMethod {
         m3t FPlastic{ 1.0 };
         m3t B{ 0.0 };
         m3t D{ 0.0 };
+
+        m3t particleDeformationTmpValue;
+        std::vector<glm::ivec3> neighs;
 
         unsigned char r, g, b, a; // Color
         float size;
@@ -165,6 +174,7 @@ namespace MaterialPointMethod {
 
     struct LagrangeEulerView : Loggable {
     public:
+        bool useCuda = false;
         LagrangeEulerView(int max_i, int max_j, int max_k, int particlesNum);
         ~LagrangeEulerView();
         void initializeParticles(const v3t& particlesOrigin, const v3t& velocity);

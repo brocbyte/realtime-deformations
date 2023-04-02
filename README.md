@@ -1,10 +1,22 @@
-A toy implementation of so-called "Material Point Method".
+A toy implementation of so-called "Material Point Method" to understand if i'm able to implement a physics-related paper.
+Turns out, i am :).
 
-Uses OpenGL + CUDA + Eigen.
+Uses OpenGL for particle visualization, CUDA for (some) parallel processing, GLM for linear algebra operations, Eigen for matrix operations not included in GLM (e.g. SVD matrix decomposition).
+
+Realtime demos (the first is the freshest :))
+
+![demo_last](./demo_last.gif)
 
 ![demo](./demo.gif)
 
 ![demo2](./demo2.gif)
+
+TODO
+
+[x] APIC
+[ ] Implicit time integration
+[ ] Multithreading for all MPM stages
+[ ] Volume rendering or sth idk separate particles are (not) fine
 
 Papers used:
 * "A material point method for snow simulation" [https://www.math.ucla.edu/~jteran/papers/SSCTS13.pdf]
